@@ -12,6 +12,17 @@ class QueryRequest(BaseModel):
     max_rows: int = Field(default=100, ge=1, le=1000)
 
 
+DESTRUCTIVE_OPERATIONS = ["DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER", "CREATE"]
+INTERNAL_TABLES = ["query_logs", "few_shot_examples", "schema_descriptions"]
+
+
+class Guardrails(BaseModel):
+    blocked_operations: list[str] = Field(default_factory=lambda: list(DESTRUCTIVE_OPERATIONS))
+    max_rows: int = Field(default=100, ge=1, le=10000)
+    allowed_table_prefixes: list[str] = []
+    blocked_tables: list[str] = Field(default_factory=lambda: list(INTERNAL_TABLES))
+
+
 class ClassifierOutput(BaseModel):
     query_type: QueryType
     tables_mentioned: list[str] = []

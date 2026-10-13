@@ -22,7 +22,7 @@ class FakeGenerator:
 
 
 class FakeValidator:
-    def validate(self, sql, max_rows=100):
+    def validate(self, sql, max_rows=100, dialect="sqlite"):
         ok = sql.upper().startswith("SELECT")
         return ValidatorOutput(valid=ok, sanitized_sql=sql if ok else "", errors=[] if ok else ["not a select"])
 

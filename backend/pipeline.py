@@ -27,7 +27,7 @@ class Generator(Protocol):
 
 
 class Validator(Protocol):
-    def validate(self, sql: str, max_rows: int = 100) -> ValidatorOutput: ...
+    def validate(self, sql: str, max_rows: int = 100, dialect: str = "sqlite") -> ValidatorOutput: ...
 
 
 class Executor(Protocol):
@@ -94,12 +94,12 @@ class Pipeline:
 
     def _generate_and_validate(self, gen_in: GeneratorInput, max_rows: int, resp: PipelineResponse) -> ValidatorOutput:
         generated = self._stage("generator", self.generator.generate, gen_in)
-        validated = self._stage("validator", self.validator.validate, generated.sql, max_rows)
+        validated = self._stage("validator", self.validator.validate, generated.sql, max_rows, gen_in.dialect)
         if not validated.valid:
             resp.generated_sql = generated.sql
             retry_in = gen_in.model_copy(update={"feedback": "; ".join(validated.errors)})
             generated = self._stage("generator", self.generator.generate, retry_in)
-            validated = self._stage("validator", self.validator.validate, generated.sql, max_rows)
+            validated = self._stage("validator", self.validator.validate, generated.sql, max_rows, gen_in.dialect)
         resp.explanation = generated.explanation
         if not validated.valid:
             resp.generated_sql = generated.sql

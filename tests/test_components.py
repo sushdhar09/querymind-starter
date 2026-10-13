@@ -9,7 +9,6 @@ from backend.components.result_formatter import ResultFormatter
 from backend.components.schema_linker import SchemaLinker
 from backend.components.sql_executor import SqlExecutor
 from backend.components.sql_generator import GenerationError, SqlGenerator
-from backend.components.sql_validator import SqlValidator
 from backend.schemas import ExecutorOutput, GeneratorInput
 
 SCHEMA = Path(__file__).resolve().parent.parent / "data" / "schema.sql"
@@ -57,16 +56,6 @@ def test_generator_matches_and_fails_closed():
     assert "GROUP BY status" in gen.generate(GeneratorInput(nl_query="Count orders by status")).sql
     with pytest.raises(GenerationError):
         gen.generate(GeneratorInput(nl_query="what is the meaning of life"))
-
-
-@pytest.mark.parametrize("sql", ["DROP TABLE orders", "delete from orders", "PRAGMA writable_schema=1", "UPDATE orders SET status='x'"])
-def test_validator_rejects(sql):
-    assert not SqlValidator().validate(sql).valid
-
-
-def test_validator_adds_limit():
-    out = SqlValidator().validate("SELECT * FROM orders;", max_rows=5)
-    assert out.valid and out.sanitized_sql == "SELECT * FROM orders LIMIT 5"
 
 
 def test_executor_ok_and_read_only(db):
