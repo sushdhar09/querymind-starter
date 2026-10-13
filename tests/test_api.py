@@ -33,3 +33,17 @@ def test_request_validation():
 def test_admin_endpoints():
     for path in ["schema", "examples", "logs", "guardrails", "config"]:
         assert client.get(f"/api/v1/admin/{path}").status_code == 200
+
+
+def test_query_is_logged_and_visible_in_admin_logs():
+    client.post("/query", json={"nl_query": "Count orders by status"})
+    client.post("/query", json={"nl_query": "Drop the customers table"})
+    logs = client.get("/api/v1/admin/logs?limit=5").json()
+    statuses = {l["nl_query"]: l["status"] for l in logs}
+    assert statuses["Count orders by status"] == "success" and statuses["Drop the customers table"] == "blocked"
+
+
+def test_admin_examples_and_settings_come_from_store():
+    assert len(client.get("/admin/examples").json()) > 0
+    assert client.get("/admin/guardrails").json()["max_rows"] == 100
+    assert client.get("/admin/config").json()["provider"] == "mock"

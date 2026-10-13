@@ -31,7 +31,7 @@ class FakeExecutor:
     def __init__(self, out=None):
         self.out, self.executed = out or ExecutorOutput(rows=[[1]], columns=["n"], row_count=1), []
 
-    def execute(self, sql):
+    def execute(self, sql, max_rows=None):
         self.executed.append(sql)
         return self.out
 

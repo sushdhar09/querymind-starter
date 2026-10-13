@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 import sqlite3
 
 from fastapi import APIRouter, Depends, FastAPI
@@ -13,14 +14,18 @@ from backend.components.sql_generator import SqlGenerator
 from backend.components.sql_validator import SqlValidator
 from backend.config import DB_PATH
 from backend.pipeline import Pipeline
-from backend.schemas import PipelineResponse, QueryRequest
+from backend.schemas import LogIn, PipelineResponse, QueryRequest
+from backend.store import AppStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+log = logging.getLogger(__name__)
+
+store = AppStore().init()
 
 
 def build_pipeline() -> Pipeline:
-    return Pipeline(QueryClassifier(), SchemaLinker(), ExampleRetriever(), SqlGenerator(), SqlValidator(),
-                    SqlExecutor(), ResultFormatter())
+    return Pipeline(QueryClassifier(), SchemaLinker(), ExampleRetriever(store), SqlGenerator(),
+                    SqlValidator(guardrails=store.get_guardrails), SqlExecutor(), ResultFormatter())
 
 
 _pipeline = build_pipeline()
@@ -43,7 +48,15 @@ router = APIRouter()
 
 @router.post("/query", response_model=PipelineResponse)
 def query(request: QueryRequest, pipeline: Pipeline = Depends(get_pipeline)):
-    return pipeline.run(request)
+    response = pipeline.run(request)
+    try:
+        store.add_log(LogIn(nl_query=request.nl_query, generated_sql=response.generated_sql, status=response.status,
+                            query_type=response.query_type, failed_stage=response.failed_stage,
+                            latency_ms=response.total_latency_ms, row_count=response.execution.row_count,
+                            error=response.error, model=store.get_model_config().provider))
+    except Exception:
+        log.exception("Failed to write query log")
+    return response
 
 
 @router.get("/admin/schema")
@@ -58,37 +71,23 @@ def schema():
 
 
 @router.get("/admin/examples")
-def examples():
-    conn = get_conn()
-    try:
-        rows = conn.execute("SELECT id, question, sql, query_type FROM few_shot_examples ORDER BY id DESC LIMIT 100").fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
+def examples(limit: int = 100, offset: int = 0, query_type: Optional[str] = None, search: Optional[str] = None):
+    return store.list_examples(limit, offset, query_type, search)
 
 
 @router.get("/admin/logs")
-def logs(limit: int = 100):
-    conn = get_conn()
-    try:
-        rows = conn.execute(
-            "SELECT id, nl_query AS natural_language_query, generated_sql, status, latency_ms, row_count, error, timestamp "
-            "FROM query_logs ORDER BY timestamp DESC LIMIT ?", (limit,)).fetchall()
-        return [dict(r) for r in rows]
-    finally:
-        conn.close()
+def logs(limit: int = 100, offset: int = 0, status: Optional[str] = None, search: Optional[str] = None):
+    return store.list_logs(limit, offset, status, search)
 
 
 @router.get("/admin/guardrails")
 def guardrails():
-    return {"max_rows": 100, "blocked_keywords": ["DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER"],
-            "enable_self_healing": True}
+    return store.get_guardrails()
 
 
 @router.get("/admin/config")
 def config():
-    return {"llm_provider": "mock", "dialect": "sqlite", "temperature": 0, "max_rows": 100}
-
+    return store.get_model_config()
 
 app = FastAPI(title="QueryMind AI", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])

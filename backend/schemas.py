@@ -74,6 +74,7 @@ class ExecutorOutput(BaseModel):
     columns: list[str] = []
     row_count: int = 0
     latency_ms: int = 0
+    truncated: bool = False
     error: Optional[str] = None
 
 
@@ -97,3 +98,51 @@ class PipelineResponse(BaseModel):
     error: Optional[str] = None
     failed_stage: Optional[str] = None
     total_latency_ms: int = 0
+
+
+class ExampleIn(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    sql: str = Field(min_length=1, max_length=5000)
+    query_type: QueryType = "SELECT_SIMPLE"
+
+
+class ExampleRecord(ExampleIn):
+    id: int
+    created_at: str
+    updated_at: str
+
+
+class ColumnMetaIn(BaseModel):
+    description: str = ""
+    synonyms: list[str] = []
+    is_sensitive: bool = False
+
+
+class ColumnMeta(ColumnMetaIn):
+    table_name: str
+    column_name: str
+
+
+class ModelConfig(BaseModel):
+    provider: Literal["mock", "openai", "anthropic", "ollama"] = "mock"
+    model: str = "gpt-4o-mini"
+    temperature: float = Field(default=0.0, ge=0, le=2)
+    max_tokens: int = Field(default=1024, ge=64, le=32000)
+    dialect: Dialect = "sqlite"
+
+
+class LogIn(BaseModel):
+    nl_query: str
+    generated_sql: str = ""
+    status: str
+    query_type: Optional[str] = None
+    failed_stage: Optional[str] = None
+    latency_ms: int = 0
+    row_count: int = 0
+    error: Optional[str] = None
+    model: Optional[str] = None
+
+
+class LogRecord(LogIn):
+    id: int
+    created_at: str

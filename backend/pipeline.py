@@ -1,6 +1,6 @@
 import logging
 import time
-from typing import Protocol
+from typing import Optional, Protocol
 
 from backend.schemas import (
     ClassifierOutput, ExecutorOutput, FormatterOutput, GeneratorInput, GeneratorOutput, LinkerOutput,
@@ -31,7 +31,7 @@ class Validator(Protocol):
 
 
 class Executor(Protocol):
-    def execute(self, sql: str) -> ExecutorOutput: ...
+    def execute(self, sql: str, max_rows: Optional[int] = None) -> ExecutorOutput: ...
 
 
 class Formatter(Protocol):
@@ -84,7 +84,7 @@ class Pipeline:
             return
 
         resp.generated_sql = validated.sanitized_sql
-        resp.execution = self._stage("executor", self.executor.execute, validated.sanitized_sql)
+        resp.execution = self._stage("executor", self.executor.execute, validated.sanitized_sql, req.max_rows)
         if resp.execution.error:
             resp.status, resp.failed_stage, resp.error = "error", "executor", resp.execution.error
             return
