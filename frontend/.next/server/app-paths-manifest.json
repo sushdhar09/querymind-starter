@@ -1,8 +1,0 @@
-{
-  "/admin/examples-manager/page": "app/admin/examples-manager/page.js",
-  "/page": "app/page.js",
-  "/admin/schema-manager/page": "app/admin/schema-manager/page.js",
-  "/admin/guardrails-config/page": "app/admin/guardrails-config/page.js",
-  "/admin/query-logs/page": "app/admin/query-logs/page.js",
-  "/admin/model-config/page": "app/admin/model-config/page.js"
-}

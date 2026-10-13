@@ -1,15 +1,5 @@
 
-import sqlite3
-from pathlib import Path
 from types import SimpleNamespace
-
-DB_CANDIDATES = [Path(__file__).parent.parent.parent / "data" / "querymind.db", Path("data/querymind.db"), Path("../data/querymind.db")]
-
-def find_db():
-    for p in DB_CANDIDATES:
-        if p.exists():
-            return p
-    return Path("data/querymind.db")
 
 class SchemaLinker:
     def link(self, nl_query, examples=None, db_path=None):

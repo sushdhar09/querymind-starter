@@ -9,29 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import sqlite3
 import time
-from pathlib import Path
-import sys
-import os
 
-# Add backend and project root to path
-current_dir = Path(__file__).parent
-project_root = current_dir.parent
-sys.path.insert(0, str(project_root))
-sys.path.insert(0, str(current_dir))
-
-def get_db_path():
-    candidates = [
-        project_root / "data" / "querymind.db",
-        current_dir / "data" / "querymind.db",
-        Path("data/querymind.db"),
-        Path("../data/querymind.db"),
-    ]
-    for p in candidates:
-        if p.exists():
-            return p.resolve()
-    return candidates[0].resolve()
-
-DB_PATH = get_db_path()
+from backend.config import DB_PATH
 print(f"Using DB: {DB_PATH}")
 
 def safe_import():
@@ -106,7 +85,7 @@ class QueryRequest(BaseModel):
 
 def get_conn(readonly=True):
     if not DB_PATH.exists():
-        raise FileNotFoundError(f"DB not found at {DB_PATH}. Run python data/seed.py or data/seed_db.py")
+        raise FileNotFoundError(f"DB not found at {DB_PATH}. Run python data/seed_db.py")
     if readonly:
         conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     else:

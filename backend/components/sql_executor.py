@@ -1,22 +1,15 @@
 
 import sqlite3
-from pathlib import Path
 import time
 from types import SimpleNamespace
 
-def find_db():
-    candidates = [Path(__file__).parent.parent.parent / "data" / "querymind.db", Path("data/querymind.db"), Path("../data/querymind.db"), Path(__file__).parent / "querymind.db"]
-    for p in candidates:
-        if p.exists():
-            return p
-    return Path("data/querymind.db")
+from backend.config import DB_PATH
 
 class SqlExecutor:
     def execute(self, sql: str):
         start = time.time()
         try:
-            db_path = find_db()
-            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            conn = sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True)
             cur = conn.execute(sql)
             rows = cur.fetchall()
             cols = [d[0] for d in cur.description] if cur.description else []
