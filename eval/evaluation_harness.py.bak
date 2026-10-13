@@ -1,0 +1,32 @@
+import json, sqlite3, sys
+sys.path.append('../backend')
+from components.validator import validate_sql
+from components.executor import execute_sql
+import sqlglot
+
+DB_PATH="../data/querymind.db"
+TEST_SET=[
+    {"nl": "Show all customers", "gt_sql": "SELECT * FROM customers LIMIT 100"},
+    {"nl": "Count orders by status", "gt_sql": "SELECT status, COUNT(*) FROM orders GROUP BY status"},
+    {"nl": "Top 5 products by revenue", "gt_sql": "SELECT p.name, SUM(oi.quantity * oi.unit_price) as rev FROM products p JOIN order_items oi ON p.product_id=oi.product_id GROUP BY p.name ORDER BY rev DESC LIMIT 5"},
+    # Add 22 more...
+]
+
+def execution_accuracy(gen_sql, gt_sql):
+    try:
+        gen_res = execute_sql(gen_sql, DB_PATH)
+        gt_res = execute_sql(gt_sql, DB_PATH)
+        if gen_res.error or gt_res.error: return False
+        # compare sorted rows
+        return sorted(gen_res.rows) == sorted(gt_res.rows)
+    except: return False
+
+def exact_match(gen_sql, gt_sql):
+    try:
+        return sqlglot.transpile(gen_sql, read='sqlite', write='sqlite')[0].lower().strip() == sqlglot.transpile(gt_sql, read='sqlite', write='sqlite')[0].lower().strip()
+    except: return False
+
+# To run full eval, loop over /query API responses vs TEST_SET
+print("Run eval: python evaluation_harness.py after implementing /query API")
+for t in TEST_SET[:2]:
+    print(t)

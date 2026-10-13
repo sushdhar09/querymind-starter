@@ -1,0 +1,152 @@
+[
+  {
+    "id": 1,
+    "natural_language_query": "Show all customers from Mumbai",
+    "ground_truth_sql": "SELECT * FROM customers WHERE city = 'Mumbai'",
+    "query_type": "SELECT_SIMPLE"
+  },
+  {
+    "id": 2,
+    "natural_language_query": "List all products in Electronics category",
+    "ground_truth_sql": "SELECT * FROM products WHERE category = 'Electronics'",
+    "query_type": "SELECT_SIMPLE"
+  },
+  {
+    "id": 3,
+    "natural_language_query": "Show orders with pending status",
+    "ground_truth_sql": "SELECT * FROM orders WHERE status = 'pending'",
+    "query_type": "SELECT_SIMPLE"
+  },
+  {
+    "id": 4,
+    "natural_language_query": "Count orders by status",
+    "ground_truth_sql": "SELECT status, COUNT(*) FROM orders GROUP BY status",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 5,
+    "natural_language_query": "What is total revenue per product category?",
+    "ground_truth_sql": "SELECT p.category, SUM(oi.quantity * oi.unit_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 6,
+    "natural_language_query": "Average rating per product",
+    "ground_truth_sql": "SELECT product_id, AVG(rating) as avg_rating FROM reviews GROUP BY product_id",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 7,
+    "natural_language_query": "Top 5 customers by total amount spent",
+    "ground_truth_sql": "SELECT c.name, SUM(o.total_amount) as spent FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC LIMIT 5",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 8,
+    "natural_language_query": "Total number of orders",
+    "ground_truth_sql": "SELECT COUNT(*) as total_orders FROM orders",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 9,
+    "natural_language_query": "List orders with customer names",
+    "ground_truth_sql": "SELECT o.order_id, c.name FROM orders o JOIN customers c ON o.customer_id = c.customer_id",
+    "query_type": "SELECT_JOIN"
+  },
+  {
+    "id": 10,
+    "natural_language_query": "Show products with their order quantities",
+    "ground_truth_sql": "SELECT p.name, SUM(oi.quantity) as total_qty FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name",
+    "query_type": "SELECT_JOIN"
+  },
+  {
+    "id": 11,
+    "natural_language_query": "Orders with payment method paypal",
+    "ground_truth_sql": "SELECT o.* FROM orders o JOIN payments p ON o.order_id = p.order_id WHERE p.payment_method = 'paypal'",
+    "query_type": "SELECT_JOIN"
+  },
+  {
+    "id": 12,
+    "natural_language_query": "Customers who bought Electronics",
+    "ground_truth_sql": "SELECT DISTINCT c.name FROM customers c JOIN orders o ON c.customer_id = o.customer_id JOIN order_items oi ON o.order_id = oi.order_id JOIN products p ON oi.product_id = p.product_id WHERE p.category = 'Electronics'",
+    "query_type": "SELECT_JOIN"
+  },
+  {
+    "id": 13,
+    "natural_language_query": "Orders in last 30 days",
+    "ground_truth_sql": "SELECT * FROM orders WHERE order_date >= date('now', '-30 days')",
+    "query_type": "SELECT_TEMPORAL"
+  },
+  {
+    "id": 14,
+    "natural_language_query": "Customers who signed up last year",
+    "ground_truth_sql": "SELECT * FROM customers WHERE signup_date >= date('now', '-1 year')",
+    "query_type": "SELECT_TEMPORAL"
+  },
+  {
+    "id": 15,
+    "natural_language_query": "What were top 10 products by revenue last quarter?",
+    "ground_truth_sql": "SELECT p.name, SUM(oi.quantity * oi.unit_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id WHERE o.order_date >= date('now', '-3 months') GROUP BY p.name ORDER BY revenue DESC LIMIT 10",
+    "query_type": "SELECT_TEMPORAL"
+  },
+  {
+    "id": 16,
+    "natural_language_query": "Payments in last 7 days",
+    "ground_truth_sql": "SELECT * FROM payments WHERE payment_date >= date('now', '-7 days')",
+    "query_type": "SELECT_TEMPORAL"
+  },
+  {
+    "id": 17,
+    "natural_language_query": "Show revenue by month (ambiguous - should use orders.total_amount)",
+    "ground_truth_sql": "SELECT strftime('%Y-%m', order_date) as month, SUM(total_amount) as revenue FROM orders GROUP BY month ORDER BY month",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 18,
+    "natural_language_query": "What is total collected payment amount?",
+    "ground_truth_sql": "SELECT SUM(amount) as collected FROM payments WHERE status = 'success'",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 19,
+    "natural_language_query": "List customers from Bangalore with their order count",
+    "ground_truth_sql": "SELECT c.name, COUNT(o.order_id) as order_count FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 20,
+    "natural_language_query": "Products with low stock less than 10",
+    "ground_truth_sql": "SELECT * FROM products WHERE stock_quantity < 10",
+    "query_type": "SELECT_SIMPLE"
+  },
+  {
+    "id": 21,
+    "natural_language_query": "Orders completed in last 60 days with total amount",
+    "ground_truth_sql": "SELECT order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= date('now', '-60 days')",
+    "query_type": "SELECT_TEMPORAL"
+  },
+  {
+    "id": 22,
+    "natural_language_query": "Average order value by city",
+    "ground_truth_sql": "SELECT c.city, AVG(o.total_amount) as avg_value FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 23,
+    "natural_language_query": "Top 3 most reviewed products",
+    "ground_truth_sql": "SELECT product_id, COUNT(*) as review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC LIMIT 3",
+    "query_type": "SELECT_AGGREGATE"
+  },
+  {
+    "id": 24,
+    "natural_language_query": "Show customer email and city for customers who ordered in last 30 days",
+    "ground_truth_sql": "SELECT DISTINCT c.email, c.city FROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_date >= date('now', '-30 days')",
+    "query_type": "SELECT_JOIN"
+  },
+  {
+    "id": 25,
+    "natural_language_query": "Count of successful payments by method",
+    "ground_truth_sql": "SELECT payment_method, COUNT(*) FROM payments WHERE status = 'success' GROUP BY payment_method",
+    "query_type": "SELECT_AGGREGATE"
+  }
+]

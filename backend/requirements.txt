@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+sqlglot
+sqlparse
+chromadb
+sentence-transformers
+anthropic
+openai
+faker
+
+
