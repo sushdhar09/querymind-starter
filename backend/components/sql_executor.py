@@ -14,9 +14,9 @@ def _authorizer(action, *_):
 
 
 class SqlExecutor:
-    def __init__(self, db_path: Path = DB_PATH, timeout_s: float = QUERY_TIMEOUT_S, max_fetch_rows: int = ABSOLUTE_MAX_ROWS):
+    def __init__(self, db_path: Path = DB_PATH, timeout_s: Optional[float] = None, max_fetch_rows: int = ABSOLUTE_MAX_ROWS):
         self.db_path = db_path
-        self.timeout_s = timeout_s
+        self.timeout_s = QUERY_TIMEOUT_S if timeout_s is None else timeout_s
         self.max_fetch_rows = max_fetch_rows
 
     def _connect(self, deadline: float) -> sqlite3.Connection:

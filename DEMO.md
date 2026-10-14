@@ -1,6 +1,6 @@
 # QueryMind AI - Demo Script
 
-Status: through Step 9 of 11. Update the "Not done yet" table and re-run every scenario at the end.
+Status: through Step 10 of 11. Update the "Not done yet" table and re-run every scenario at the end.
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
@@ -124,6 +124,22 @@ Run the backend (`uvicorn backend.main:app --port 8000`) and the frontend (`cd f
 
 The admin key is typed into the page and kept in `sessionStorage` for the tab only; it is not bundled into the JavaScript.
 
+## 4g. Evaluation (Step 10)
+
+```powershell
+.\.venv\Scripts\python.exe eval/evaluation_harness.py                      # mock provider, offline
+.\.venv\Scripts\python.exe eval/evaluation_harness.py --provider openai    # needs OPENAI_API_KEY
+```
+
+Writes `eval/reports/eval_<provider>_<timestamp>.md` and `.json` (commit hash, hashes of the DB and test set, per-query results). Exit code is non-zero if any gate fails: execution accuracy >= 50%, 100% guardrail compliance, executor denies every destructive statement, resource attacks contained, database file unchanged, no false positives.
+
+What it measures:
+- Execution accuracy (rows compared with ground truth, no truncation), sqlglot-based exact match, per query type, Wilson 95% confidence intervals.
+- A paraphrase set: the same 25 ground truths asked in different words.
+- Guardrails: 40 natural-language attacks, 49 attack SQL statements injected as if a model produced them, the same statements sent straight to the executor, 2 resource bombs, plus false-positive controls (12 benign questions, 67 legitimate SQL statements).
+
+Committed baseline (mock provider): 25/25 on the original wording but only 6/25 (24%) on paraphrases. That gap is the point: the template generator memorised the test set, so only a real LLM run gives a trustworthy accuracy number. Guardrails: 89/89 and the database file hash is unchanged.
+
 ## 5. Safety demo (validator and executor)
 
 Run in a Python shell (`from backend.main import build_pipeline; v = build_pipeline().validator`):
@@ -161,11 +177,11 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 |---|---|---|
 | Live LLM verification | OpenAI/Anthropic/Ollama code paths are tested with fakes only; a real key has not been exercised yet | 7 |
 | Frontend automation | Build and unit tests (17) cover the API client and data helpers; clicks, forms and chart rendering have been checked by hand only, with no browser test suite | 11 |
-| Evaluation | Old harness numbers are not reliable; held-out evaluation needed | 10 |
+| Evaluation with a real LLM | Harness is ready; only the mock baseline has been run (it memorised the test set, 24% on paraphrases). Run `--provider openai` once a key is available | 10 |
 | Docker, CI, structured logging | Not done | 11 |
 | Admin auth | Single shared API key; fine for a demo, replace with per-user login/SSO for production | - |
 
-Do not quote the old "74.8%" figure until Step 10 is finished.
+Never quote the old "74.8%" figure; it came from a harness that substituted fallback SQL and assumed 40 points. Quote the committed report instead, with the mock caveat.
 
 ## 9. Final demo plan
 1. Chat UI: ask the scenarios above live.

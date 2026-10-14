@@ -7,19 +7,9 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 
-from backend.components.example_retriever import ExampleRetriever
-from backend.components.llm_generator import ConfiguredGenerator, LlmGenerator
-from backend.components.query_classifier import QueryClassifier
-from backend.components.result_formatter import LlmSummarizer, ResultFormatter
-from backend.components.schema_linker import SchemaLinker
-from backend.components.sql_executor import SqlExecutor
-from backend.components.sql_generator import SqlGenerator
-from backend.components.sql_validator import SqlValidator
 from backend.config import CORS_ORIGINS, DATA_DIR, DB_PATH, EMBEDDING_MODE, OPENAI_API_KEY, ANTHROPIC_API_KEY
-from backend.embeddings import get_embedding_function
-from backend.llm import build_client
+from backend.factory import build_app
 from backend.pipeline import Pipeline
-from backend.schema_index import SchemaIndex
 from backend.schemas import (
     ColumnMeta, ColumnMetaIn, Example, ExampleIn, ExampleRecord, Guardrails, LogIn, LogRecord, LogStats, ModelConfig,
     ModelConfigOut, PipelineResponse, QueryRequest, SchemaTable,
@@ -32,18 +22,11 @@ log = logging.getLogger(__name__)
 
 store = AppStore(analytics_db=None, metadata_seed=DATA_DIR / "column_metadata.json",
                  examples_seed=DATA_DIR / "examples_seed.json").init()
-index = SchemaIndex(store)
-retriever = ExampleRetriever(store, embedding_function=get_embedding_function(EMBEDDING_MODE))
-validator = SqlValidator(guardrails=store.get_guardrails, blocked_columns=store.sensitive_columns)
+_app = build_app(store, EMBEDDING_MODE)
+index, retriever, validator = _app.index, _app.retriever, _app.validator
 
 
-def build_pipeline() -> Pipeline:
-    return Pipeline(QueryClassifier(index), SchemaLinker(index), retriever,
-                    ConfiguredGenerator(SqlGenerator(), LlmGenerator(build_client, store.get_model_config), store.get_model_config),
-                    validator, SqlExecutor(), ResultFormatter(LlmSummarizer(build_client, store.get_model_config)))
-
-
-_pipeline = build_pipeline()
+_pipeline = _app.pipeline
 
 
 def get_pipeline() -> Pipeline:

@@ -11,7 +11,7 @@ class QueryRequest(BaseModel):
     clarify_ambiguities: bool = False
     column_choices: dict[str, str] = {}
     dialect: Dialect = "sqlite"
-    max_rows: int = Field(default=100, ge=1, le=1000)
+    max_rows: int = Field(default=100, ge=1, le=10000)
 
 
 DESTRUCTIVE_OPERATIONS = ["DROP", "DELETE", "UPDATE", "INSERT", "TRUNCATE", "ALTER", "CREATE"]
