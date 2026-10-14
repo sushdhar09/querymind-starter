@@ -1,24 +1,30 @@
+import csv
+import io
 import logging
 from typing import Optional
-import sqlite3
 
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 
 from backend.components.example_retriever import ExampleRetriever
-from backend.components.query_classifier import QueryClassifier
 from backend.components.llm_generator import ConfiguredGenerator, LlmGenerator
+from backend.components.query_classifier import QueryClassifier
 from backend.components.result_formatter import LlmSummarizer, ResultFormatter
 from backend.components.schema_linker import SchemaLinker
 from backend.components.sql_executor import SqlExecutor
 from backend.components.sql_generator import SqlGenerator
 from backend.components.sql_validator import SqlValidator
-from backend.config import DATA_DIR, DB_PATH, EMBEDDING_MODE
+from backend.config import CORS_ORIGINS, DATA_DIR, DB_PATH, EMBEDDING_MODE, OPENAI_API_KEY, ANTHROPIC_API_KEY
 from backend.embeddings import get_embedding_function
 from backend.llm import build_client
 from backend.pipeline import Pipeline
 from backend.schema_index import SchemaIndex
-from backend.schemas import LogIn, PipelineResponse, QueryRequest
+from backend.schemas import (
+    ColumnMeta, ColumnMetaIn, Example, ExampleIn, ExampleRecord, Guardrails, LogIn, LogRecord, LogStats, ModelConfig,
+    ModelConfigOut, PipelineResponse, QueryRequest, SchemaTable,
+)
+from backend.security import query_rate_limit, require_admin
 from backend.store import AppStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -28,13 +34,13 @@ store = AppStore(analytics_db=None, metadata_seed=DATA_DIR / "column_metadata.js
                  examples_seed=DATA_DIR / "examples_seed.json").init()
 index = SchemaIndex(store)
 retriever = ExampleRetriever(store, embedding_function=get_embedding_function(EMBEDDING_MODE))
+validator = SqlValidator(guardrails=store.get_guardrails, blocked_columns=store.sensitive_columns)
 
 
 def build_pipeline() -> Pipeline:
     return Pipeline(QueryClassifier(index), SchemaLinker(index), retriever,
                     ConfiguredGenerator(SqlGenerator(), LlmGenerator(build_client, store.get_model_config), store.get_model_config),
-                    SqlValidator(guardrails=store.get_guardrails, blocked_columns=store.sensitive_columns),
-                    SqlExecutor(), ResultFormatter(LlmSummarizer(build_client, store.get_model_config)))
+                    validator, SqlExecutor(), ResultFormatter(LlmSummarizer(build_client, store.get_model_config)))
 
 
 _pipeline = build_pipeline()
@@ -44,18 +50,15 @@ def get_pipeline() -> Pipeline:
     return _pipeline
 
 
-def get_conn(readonly: bool = True) -> sqlite3.Connection:
-    if not DB_PATH.exists():
-        raise FileNotFoundError(f"DB not found at {DB_PATH}. Run python data/seed_db.py")
-    conn = sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode={'ro' if readonly else 'rw'}", uri=True)
-    conn.row_factory = sqlite3.Row
-    return conn
+def provider_key_configured(provider: str) -> bool:
+    return {"openai": bool(OPENAI_API_KEY), "anthropic": bool(ANTHROPIC_API_KEY)}.get(provider, True)
 
 
-router = APIRouter()
+public = APIRouter()
+admin = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 
 
-@router.post("/query", response_model=PipelineResponse)
+@public.post("/query", response_model=PipelineResponse, dependencies=[Depends(query_rate_limit)])
 def query(request: QueryRequest, pipeline: Pipeline = Depends(get_pipeline)):
     response = pipeline.run(request)
     try:
@@ -68,42 +71,123 @@ def query(request: QueryRequest, pipeline: Pipeline = Depends(get_pipeline)):
     return response
 
 
-@router.get("/admin/schema")
-def schema():
-    conn = get_conn()
+@admin.get("/schema", response_model=list[SchemaTable])
+def get_schema():
     try:
-        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
-        return [{"table_name": t["name"], "columns": [dict(c) for c in conn.execute(f'PRAGMA table_info("{t["name"]}")')]}
-                for t in tables]
-    finally:
-        conn.close()
+        return index.describe()
+    except FileNotFoundError:
+        raise HTTPException(503, f"Analytics database not found at {DB_PATH}. Run python data/seed_db.py")
 
 
-@router.get("/admin/examples")
-def examples(limit: int = 100, offset: int = 0, query_type: Optional[str] = None, search: Optional[str] = None):
-    return store.list_examples(limit, offset, query_type, search)
+@admin.put("/schema/{table}/{column}", response_model=ColumnMeta)
+def update_column(table: str, column: str, meta: ColumnMetaIn):
+    match = next(((t.table_name, c.name) for t in get_schema() if t.table_name.lower() == table.lower()
+                  for c in t.columns if c.name.lower() == column.lower()), None)
+    if not match:
+        raise HTTPException(404, f"Unknown column '{table}.{column}'")
+    return store.upsert_column_metadata(*match, meta)
 
 
-@router.get("/admin/logs")
-def logs(limit: int = 100, offset: int = 0, status: Optional[str] = None, search: Optional[str] = None):
-    return store.list_logs(limit, offset, status, search)
+def _validated_example(ex: ExampleIn) -> ExampleIn:
+    result = validator.validate(ex.sql)
+    if not result.valid:
+        raise HTTPException(422, {"message": "Example SQL failed validation", "errors": result.errors})
+    return ex
 
 
-@router.get("/admin/guardrails")
-def guardrails():
+@admin.get("/examples", response_model=list[ExampleRecord])
+def list_examples(limit: int = 100, offset: int = 0, query_type: Optional[str] = None, search: Optional[str] = None):
+    return store.list_examples(min(limit, 1000), offset, query_type, search)
+
+
+@admin.get("/examples/search", response_model=list[Example])
+def search_examples(q: str, top_k: int = 5, query_type: Optional[str] = None):
+    return retriever.search(q, min(max(top_k, 1), 20), query_type)
+
+
+@admin.post("/examples", response_model=ExampleRecord, status_code=201)
+def create_example(ex: ExampleIn):
+    return store.create_example(_validated_example(ex))
+
+
+@admin.put("/examples/{example_id}", response_model=ExampleRecord)
+def update_example(example_id: int, ex: ExampleIn):
+    updated = store.update_example(example_id, _validated_example(ex))
+    if not updated:
+        raise HTTPException(404, "Example not found")
+    return updated
+
+
+@admin.delete("/examples/{example_id}", status_code=204)
+def delete_example(example_id: int):
+    if not store.delete_example(example_id):
+        raise HTTPException(404, "Example not found")
+
+
+@admin.get("/logs", response_model=list[LogRecord])
+def list_logs(response: Response, limit: int = 100, offset: int = 0, status: Optional[str] = None, search: Optional[str] = None):
+    response.headers["X-Total-Count"] = str(store.count_logs(status, search))
+    return store.list_logs(min(limit, 1000), offset, status, search)
+
+
+def _csv_safe(value) -> str:
+    text = "" if value is None else str(value)
+    return "'" + text if text[:1] in ("=", "+", "-", "@", "\t", "\r") else text
+
+
+@admin.get("/logs/export")
+def export_logs(status: Optional[str] = None, search: Optional[str] = None, limit: int = 10000):
+    fields = ["id", "created_at", "nl_query", "generated_sql", "status", "query_type", "failed_stage", "latency_ms",
+              "row_count", "error", "model"]
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(fields)
+    for rec in store.list_logs(min(limit, 100000), 0, status, search):
+        writer.writerow([_csv_safe(getattr(rec, f)) for f in fields])
+    return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv",
+                             headers={"Content-Disposition": 'attachment; filename="query_logs.csv"'})
+
+
+@admin.get("/stats", response_model=LogStats)
+def stats():
+    return store.log_stats()
+
+
+@admin.get("/guardrails", response_model=Guardrails)
+def get_guardrails():
     return store.get_guardrails()
 
 
-@router.get("/admin/config")
-def config():
-    return store.get_model_config()
+@admin.put("/guardrails", response_model=Guardrails)
+def set_guardrails(g: Guardrails):
+    return store.set_guardrails(g)
+
+
+def _config_out(cfg: ModelConfig) -> ModelConfigOut:
+    return ModelConfigOut(**cfg.model_dump(), api_key_configured=provider_key_configured(cfg.provider))
+
+
+@admin.get("/config", response_model=ModelConfigOut)
+def get_config():
+    return _config_out(store.get_model_config())
+
+
+@admin.put("/config", response_model=ModelConfigOut)
+def set_config(cfg: ModelConfig):
+    if not provider_key_configured(cfg.provider):
+        raise HTTPException(422, f"The server has no API key configured for provider '{cfg.provider}'")
+    return _config_out(store.set_model_config(cfg))
+
 
 app = FastAPI(title="QueryMind AI", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-app.include_router(router)
-app.include_router(router, prefix="/api/v1")
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_credentials=False,
+                   allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "X-API-Key", "Authorization"],
+                   expose_headers=["X-Total-Count"])
+for prefix in ("", "/api/v1"):
+    app.include_router(public, prefix=prefix)
+    app.include_router(admin, prefix=prefix)
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "db_exists": DB_PATH.exists()}
+    return {"status": "ok", "db_exists": DB_PATH.exists(), "llm_provider": store.get_model_config().provider}

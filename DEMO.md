@@ -1,6 +1,6 @@
 # QueryMind AI - Demo Script
 
-Status: through Step 7 of 11. Update the "Not done yet" table and re-run every scenario at the end.
+Status: through Step 8 of 11. Update the "Not done yet" table and re-run every scenario at the end.
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
@@ -87,6 +87,25 @@ Switch provider by setting `LLM_PROVIDER=openai` and `OPENAI_API_KEY` in `.env` 
 
 Prompt safety: the question is wrapped in `<question>` tags and the system prompt tells the model to treat it as data. Sensitive columns never reach the prompt. API keys are never logged or returned in error messages.
 
+## 4e. Admin API (Step 8)
+
+Set `ADMIN_API_KEY` in `.env`, then send it as `X-API-Key` (or `Authorization: Bearer`). Without the key every `/admin/*` route returns 401; if the server has no key configured they return 503 (fail closed). Try it in Swagger UI with the Authorize button, or:
+
+```powershell
+$h = @{ "X-API-Key" = "change-me" }
+Invoke-RestMethod http://localhost:8000/api/v1/admin/guardrails -Headers $h
+```
+
+| Panel | Endpoints | Demo |
+|---|---|---|
+| Schema Manager | `GET /admin/schema`, `PUT /admin/schema/{table}/{column}` | mark `customers.email` sensitive, ask for customer email: blocked; un-mark: works |
+| Examples Manager | `GET/POST /admin/examples`, `PUT/DELETE /admin/examples/{id}`, `GET /admin/examples/search?q=` | add an example, search for it semantically, ask a similar question and see it retrieved; a bad example (`DROP TABLE`, unknown column) is rejected with the validator's errors |
+| Query Logs | `GET /admin/logs` (filters, `X-Total-Count`), `GET /admin/logs/export` (CSV, formula-injection safe), `GET /admin/stats` | run a few queries, filter by status, export |
+| Guardrails | `GET/PUT /admin/guardrails` | set `max_rows` to 5: the very next query returns 5 rows; set `allowed_table_prefixes` to `["order"]`: customer questions are blocked |
+| Model Config | `GET/PUT /admin/config` | switch provider/temperature/max tokens; selecting a provider whose key is not on the server is rejected (422). Keys are never returned. |
+
+Other hardening: CORS limited to `CORS_ORIGINS` (no wildcard, no credentials), `/query` rate limit per client IP (`RATE_LIMIT_PER_MIN`, 429 with `Retry-After`), internal tables cannot be removed from the blocked list, admin comparison of keys is constant-time.
+
 ## 5. Safety demo (validator and executor)
 
 Run in a Python shell (`from backend.main import build_pipeline; v = build_pipeline().validator`):
@@ -123,10 +142,10 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 | Area | Current state | Step |
 |---|---|---|
 | Live LLM verification | OpenAI/Anthropic/Ollama code paths are tested with fakes only; a real key has not been exercised yet | 7 |
-| Admin writes | No add/edit/delete examples or guardrail toggles via API | 8 |
-| Frontend | Chat page works; 5 admin panels only dump JSON; no clarification prompt yet | 9 |
+| Frontend | Chat page works; admin panels only dump JSON and do not send the admin key yet (they show errors until Step 9); no clarification prompt yet | 9 |
 | Evaluation | Old harness numbers are not reliable; held-out evaluation needed | 10 |
-| Auth, CORS, Docker, CI | Not done | 8, 11 |
+| Docker, CI, structured logging | Not done | 11 |
+| Admin auth | Single shared API key; fine for a demo, replace with per-user login/SSO for production | - |
 
 Do not demo the admin panels or quote the old "74.8%" figure until Steps 9 and 10 are finished.
 

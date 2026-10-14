@@ -7,7 +7,7 @@ from typing import Iterator, Optional
 
 from backend.config import APP_DB_PATH, DB_PATH, LLM_MODEL, LLM_PROVIDER
 from backend.schemas import (
-    ColumnMeta, ColumnMetaIn, ExampleIn, ExampleRecord, Guardrails, LogIn, LogRecord, ModelConfig,
+    INTERNAL_TABLES, ColumnMeta, ColumnMetaIn, ExampleIn, ExampleRecord, Guardrails, LogIn, LogRecord, LogStats, ModelConfig,
 )
 
 log = logging.getLogger(__name__)
@@ -217,18 +217,36 @@ class AppStore:
                  entry.latency_ms, entry.row_count, entry.error, entry.model))
             return cur.lastrowid
 
-    def list_logs(self, limit: int = 100, offset: int = 0, status: Optional[str] = None,
-                  search: Optional[str] = None) -> list[LogRecord]:
-        sql, args = "SELECT * FROM query_logs WHERE 1=1", []
+    @staticmethod
+    def _log_filter(status: Optional[str], search: Optional[str]) -> tuple[str, list]:
+        sql, args = " WHERE 1=1", []
         if status:
             sql += " AND status = ?"
             args.append(status)
         if search:
             sql += " AND (nl_query LIKE ? OR generated_sql LIKE ?)"
             args += [f"%{search}%"] * 2
+        return sql, args
+
+    def list_logs(self, limit: int = 100, offset: int = 0, status: Optional[str] = None,
+                  search: Optional[str] = None) -> list[LogRecord]:
+        where, args = self._log_filter(status, search)
         with self._conn() as c:
-            rows = c.execute(sql + " ORDER BY id DESC LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
+            rows = c.execute(f"SELECT * FROM query_logs{where} ORDER BY id DESC LIMIT ? OFFSET ?", (*args, limit, offset)).fetchall()
         return [LogRecord(**dict(r)) for r in rows]
+
+    def count_logs(self, status: Optional[str] = None, search: Optional[str] = None) -> int:
+        where, args = self._log_filter(status, search)
+        with self._conn() as c:
+            return c.execute(f"SELECT COUNT(*) FROM query_logs{where}", args).fetchone()[0]
+
+    def log_stats(self) -> LogStats:
+        with self._conn() as c:
+            by_status = {r[0]: r[1] for r in c.execute("SELECT status, COUNT(*) FROM query_logs GROUP BY status")}
+            avg = c.execute("SELECT COALESCE(AVG(latency_ms), 0) FROM query_logs").fetchone()[0]
+        total = sum(by_status.values())
+        return LogStats(total=total, by_status=by_status, avg_latency_ms=round(avg, 1),
+                        success_rate=round(by_status.get("success", 0) / total, 4) if total else 0.0)
 
     def _get_setting(self, key: str) -> Optional[dict]:
         with self._conn() as c:
@@ -244,6 +262,7 @@ class AppStore:
         return Guardrails(**data) if data else Guardrails()
 
     def set_guardrails(self, g: Guardrails) -> Guardrails:
+        g = g.model_copy(update={"blocked_tables": list(dict.fromkeys([*g.blocked_tables, *INTERNAL_TABLES]))})
         self._set_setting("guardrails", g.model_dump())
         return g
 

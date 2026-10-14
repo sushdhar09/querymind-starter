@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from backend.config import DB_PATH
-from backend.schemas import INTERNAL_TABLES, Ambiguity, ColumnContext, TableContext
+from backend.schemas import INTERNAL_TABLES, Ambiguity, ColumnContext, SchemaColumn, SchemaTable, TableContext
 from backend.store import AppStore
 
 log = logging.getLogger(__name__)
@@ -20,6 +20,7 @@ class Snapshot:
     columns: dict[str, list[tuple[str, str]]]
     fks: list[tuple[str, str, str, str]]
     values: dict[str, list[tuple[str, str, str]]]
+    primary_keys: dict[str, set[str]] = field(default_factory=dict)
 
 
 @dataclass
@@ -51,13 +52,14 @@ def _pattern(term: str) -> re.Pattern:
 
 def load_snapshot(db_path: Path, internal_tables=INTERNAL_TABLES) -> Snapshot:
     conn = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
-    columns, fks, values = {}, [], defaultdict(list)
+    columns, fks, values, primary_keys = {}, [], defaultdict(list), {}
     try:
         names = [r[0] for r in conn.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'") if r[0] not in internal_tables]
         for t in names:
             info = conn.execute(f'PRAGMA table_info("{t}")').fetchall()
             columns[t] = [(c[1], c[2] or "") for c in info]
+            primary_keys[t] = {c[1] for c in info if c[5]}
             fks += [(t, r[3], r[2], r[4]) for r in conn.execute(f'PRAGMA foreign_key_list("{t}")')]
             for _, name, ctype, _, _, pk in info:
                 type_up = (ctype or "").upper()
@@ -73,7 +75,7 @@ def load_snapshot(db_path: Path, internal_tables=INTERNAL_TABLES) -> Snapshot:
                         values[re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()].append((t, name, s))
     finally:
         conn.close()
-    return Snapshot(columns, fks, dict(values))
+    return Snapshot(columns, fks, dict(values), primary_keys)
 
 
 class SchemaIndex:
@@ -169,6 +171,19 @@ class SchemaIndex:
                 value_hits.append(f"{name} = '{original}'")
         tables = [t for t in snap.columns if t in table_hits or any(c.startswith(t + ".") for c in columns)]
         return Analysis(tables, list(dict.fromkeys(columns)), excluded, ambiguities, value_hits)
+
+    def describe(self) -> list[SchemaTable]:
+        snap, meta = self.snapshot(), self._meta()
+        out = []
+        for t, cols in snap.columns.items():
+            columns = []
+            for name, ctype in cols:
+                m = meta.get((t.lower(), name.lower()))
+                columns.append(SchemaColumn(name=name, type=ctype, primary_key=name in snap.primary_keys.get(t, ()),
+                                            description=m.description if m else "", synonyms=m.synonyms if m else [],
+                                            is_sensitive=bool(m and m.is_sensitive)))
+            out.append(SchemaTable(table_name=t, columns=columns))
+        return out
 
     def _join_path(self, tables: list[str]) -> list[str]:
         snap = self.snapshot()

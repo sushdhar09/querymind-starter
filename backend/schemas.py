@@ -1,6 +1,6 @@
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 QueryType = Literal["SELECT_SIMPLE", "SELECT_AGGREGATE", "SELECT_JOIN", "SELECT_TEMPORAL", "UNSUPPORTED"]
 Dialect = Literal["sqlite", "postgresql", "mysql"]
@@ -23,6 +23,20 @@ class Guardrails(BaseModel):
     max_rows: int = Field(default=100, ge=1, le=10000)
     allowed_table_prefixes: list[str] = []
     blocked_tables: list[str] = Field(default_factory=lambda: list(INTERNAL_TABLES))
+
+    @field_validator("blocked_operations")
+    @classmethod
+    def _known_operations(cls, v: list[str]) -> list[str]:
+        ops = list(dict.fromkeys(o.strip().upper() for o in v))
+        unknown = sorted(set(ops) - set(DESTRUCTIVE_OPERATIONS))
+        if unknown:
+            raise ValueError(f"Unknown operations {unknown}; allowed: {DESTRUCTIVE_OPERATIONS}")
+        return ops
+
+    @field_validator("allowed_table_prefixes", "blocked_tables")
+    @classmethod
+    def _clean_names(cls, v: list[str]) -> list[str]:
+        return list(dict.fromkeys(s.strip() for s in v if s.strip()))
 
 
 class ClassifierOutput(BaseModel):
@@ -170,3 +184,28 @@ class LogIn(BaseModel):
 class LogRecord(LogIn):
     id: int
     created_at: str
+
+
+class SchemaColumn(BaseModel):
+    name: str
+    type: str = ""
+    primary_key: bool = False
+    description: str = ""
+    synonyms: list[str] = []
+    is_sensitive: bool = False
+
+
+class SchemaTable(BaseModel):
+    table_name: str
+    columns: list[SchemaColumn]
+
+
+class ModelConfigOut(ModelConfig):
+    api_key_configured: bool
+
+
+class LogStats(BaseModel):
+    total: int = 0
+    by_status: dict[str, int] = {}
+    success_rate: float = 0.0
+    avg_latency_ms: float = 0.0

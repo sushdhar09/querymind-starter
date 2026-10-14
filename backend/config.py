@@ -22,6 +22,17 @@ EMBEDDING_MODE = os.getenv("EMBEDDING_MODE", "onnx")  # onnx | hash (hash is for
 QUERY_TIMEOUT_S = float(os.getenv("QUERY_TIMEOUT_S", "5"))
 ABSOLUTE_MAX_ROWS = int(os.getenv("ABSOLUTE_MAX_ROWS", "10000"))
 
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
+
+
+def admin_api_key() -> str:
+    return os.getenv("ADMIN_API_KEY", "")
+
+
+def rate_limit_per_min() -> int:
+    return int(os.getenv("RATE_LIMIT_PER_MIN", "60"))
+
+
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")  # mock | openai
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
