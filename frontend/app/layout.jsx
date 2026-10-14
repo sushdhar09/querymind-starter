@@ -1,12 +1,14 @@
+import './globals.css'
+
 export const metadata = {
   title: 'QueryMind AI',
-  description: 'Text-to-SQL',
+  description: 'Ask your data in plain English',
 }
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body style={{margin:0, fontFamily:'system-ui, sans-serif', background:'#f5f5f5'}}>{children}</body>
+      <body>{children}</body>
     </html>
   )
 }

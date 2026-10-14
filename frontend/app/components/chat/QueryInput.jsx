@@ -1,20 +1,46 @@
+'use client'
+import { useEffect, useRef, useState } from 'react'
+
 export function QueryInput({ value, onChange, onSubmit, isLoading }) {
+  const [listening, setListening] = useState(false)
+  const [supported, setSupported] = useState(false)
+  const recognition = useRef(null)
+
+  useEffect(() => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    setSupported(true)
+    const rec = new SR()
+    rec.lang = 'en-US'
+    rec.interimResults = false
+    rec.onresult = (e) => onChange(Array.from(e.results).map((r) => r[0].transcript).join(' '))
+    rec.onend = () => setListening(false)
+    rec.onerror = () => setListening(false)
+    recognition.current = rec
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const toggleMic = () => {
+    if (listening) recognition.current.stop()
+    else { setListening(true); recognition.current.start() }
+  }
+
   return (
-    <div style={{ background: 'white', borderRadius: 12, padding: 16, display: 'flex', gap: 8, boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: 16 }}>
-      <input
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder="e.g. Top 10 products by revenue last quarter"
-        style={{ flex: 1, border: '1px solid #ddd', borderRadius: 8, padding: '10px 12px' }}
-        onKeyDown={(e) => { if (e.key === 'Enter') onSubmit() }}
-      />
-      <button
-        onClick={onSubmit}
-        disabled={isLoading}
-        style={{ background: 'black', color: 'white', padding: '10px 20px', borderRadius: 8, cursor: 'pointer' }}
-      >
-        {isLoading ? 'Thinking...' : 'Ask'}
-      </button>
+    <div className="card">
+      <div className="row">
+        <input
+          type="text" className="grow" value={value} aria-label="Your question" maxLength={1000}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Ask a question about your data, e.g. Top 5 customers by total amount spent"
+          onKeyDown={(e) => { if (e.key === 'Enter' && !isLoading) onSubmit() }}
+        />
+        {supported && (
+          <button className={`btn secondary${listening ? ' danger' : ''}`} onClick={toggleMic} title="Speak your question" aria-pressed={listening}>
+            {listening ? 'Stop' : 'Mic'}
+          </button>
+        )}
+        <button className="btn" onClick={() => onSubmit()} disabled={isLoading || !value.trim()}>{isLoading ? 'Thinking...' : 'Ask'}</button>
+      </div>
     </div>
   )
 }

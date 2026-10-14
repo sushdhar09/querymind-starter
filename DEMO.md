@@ -1,6 +1,6 @@
 # QueryMind AI - Demo Script
 
-Status: through Step 8 of 11. Update the "Not done yet" table and re-run every scenario at the end.
+Status: through Step 9 of 11. Update the "Not done yet" table and re-run every scenario at the end.
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
@@ -106,6 +106,24 @@ Invoke-RestMethod http://localhost:8000/api/v1/admin/guardrails -Headers $h
 
 Other hardening: CORS limited to `CORS_ORIGINS` (no wildcard, no credentials), `/query` rate limit per client IP (`RATE_LIMIT_PER_MIN`, 429 with `Retry-After`), internal tables cannot be removed from the blocked list, admin comparison of keys is constant-time.
 
+## 4f. Frontend (Step 9)
+
+Run the backend (`uvicorn backend.main:app --port 8000`) and the frontend (`cd frontend; npm install; npm run dev`), then open http://localhost:3000.
+
+| Screen | What to show |
+|---|---|
+| Chat | suggestion chips; summary, sortable and paged table, auto bar/line chart for 2-column numeric results, collapsible SQL with copy; "Explain" toggle shows the model's explanation, tables, columns and detected filters; Mic button (browsers with Web Speech API) |
+| Chat, clarification | ask "Show revenue by month" with "Ask me when unsure" on: buttons for `orders.total_amount` / `payments.amount`; click one and the query runs with that choice |
+| Chat, safety | "Drop the customers table" shows a blocked message with the stage that stopped it |
+| /admin/* | enter the admin key once per tab; wrong key is rejected; Sign out clears it; a 401 later sends you back to the gate |
+| Schema Manager | pick a table, edit descriptions and synonyms, tick Sensitive, Save per row; then ask for that column in Chat |
+| Examples Manager | add, edit and delete examples (bad SQL is rejected with the validator errors shown), filter by type or text, semantic search with similarity scores |
+| Query Logs | stats cards, filter by status or text, pagination, Export CSV |
+| Guardrails | tick which operations are blocked, set max rows, table prefixes; applies to the next query |
+| Model Config | provider, model, temperature, max tokens, dialect, LLM summary toggle; a provider with no server key is rejected |
+
+The admin key is typed into the page and kept in `sessionStorage` for the tab only; it is not bundled into the JavaScript.
+
 ## 5. Safety demo (validator and executor)
 
 Run in a Python shell (`from backend.main import build_pipeline; v = build_pipeline().validator`):
@@ -142,12 +160,12 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 | Area | Current state | Step |
 |---|---|---|
 | Live LLM verification | OpenAI/Anthropic/Ollama code paths are tested with fakes only; a real key has not been exercised yet | 7 |
-| Frontend | Chat page works; admin panels only dump JSON and do not send the admin key yet (they show errors until Step 9); no clarification prompt yet | 9 |
+| Frontend automation | Build and unit tests (17) cover the API client and data helpers; clicks, forms and chart rendering have been checked by hand only, with no browser test suite | 11 |
 | Evaluation | Old harness numbers are not reliable; held-out evaluation needed | 10 |
 | Docker, CI, structured logging | Not done | 11 |
 | Admin auth | Single shared API key; fine for a demo, replace with per-user login/SSO for production | - |
 
-Do not demo the admin panels or quote the old "74.8%" figure until Steps 9 and 10 are finished.
+Do not quote the old "74.8%" figure until Step 10 is finished.
 
 ## 9. Final demo plan
 1. Chat UI: ask the scenarios above live.

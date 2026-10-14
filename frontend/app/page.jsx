@@ -1,50 +1,63 @@
 'use client'
-import { useState } from 'react'
-import { Header } from './components/common/Header.jsx'
+import { useRef, useState } from 'react'
+import { Header, PageTitle } from './components/common/Header.jsx'
 import { QueryInput } from './components/chat/QueryInput.jsx'
-import { SqlPreview } from './components/sql/SqlPreview.jsx'
-import { ResultTable } from './components/table/ResultTable.jsx'
-import { AdminNav } from './components/admin/AdminNav.jsx'
+import { AnswerCard } from './components/chat/AnswerCard.jsx'
 import { apiClient } from './lib/apiClient.js'
 
-export default function HomePage() {
-  const [query, setQuery] = useState('Count orders by status')
-  const [response, setResponse] = useState(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState('')
+const SUGGESTIONS = [
+  'Count orders by status',
+  'Top 5 customers by total amount spent',
+  'Total revenue per product category',
+  'Orders in last 30 days',
+  'Show revenue by month',
+]
 
-  const handleSubmit = async () => {
-    setIsLoading(true)
-    setError('')
+export default function ChatPage() {
+  const [query, setQuery] = useState('')
+  const [turns, setTurns] = useState([])
+  const [clarify, setClarify] = useState(true)
+  const [explain, setExplain] = useState(false)
+  const nextId = useRef(1)
+  const busy = turns.some((t) => t.loading)
+
+  const ask = async (question, choices = {}, replaceId = null) => {
+    const q = (question ?? query).trim()
+    if (!q) return
+    const id = replaceId ?? nextId.current++
+    const pending = { id, question: q, choices, loading: true }
+    setTurns((prev) => (replaceId ? prev.map((t) => (t.id === id ? pending : t)) : [pending, ...prev]))
+    if (!replaceId) setQuery('')
     try {
-      const data = await apiClient.executeQuery({ nl_query: query })
-      setResponse(data)
+      const response = await apiClient.executeQuery({ nl_query: q, clarify_ambiguities: clarify, column_choices: choices })
+      setTurns((prev) => prev.map((t) => (t.id === id ? { ...pending, loading: false, response } : t)))
     } catch (e) {
-      setError('Backend not running on :8000. Run uvicorn app.main:app --reload in backend folder')
+      setTurns((prev) => prev.map((t) => (t.id === id ? { ...pending, loading: false, error: e.message } : t)))
     }
-    setIsLoading(false)
   }
 
+  const choose = (turn) => (term, column) => ask(turn.question, { ...turn.choices, [term]: column }, turn.id)
+
   return (
-    <div style={{ minHeight: '100vh', padding: 24 }}>
-      <div style={{ maxWidth: 1000, margin: '0 auto' }}>
-        <Header title="QueryMind AI" subtitle="Natural Language Analytics for E-commerce" />
-        <QueryInput value={query} onChange={setQuery} onSubmit={handleSubmit} isLoading={isLoading} />
-        {error && <div style={{ background: '#fee', padding: 12, borderRadius: 8, marginBottom: 12 }}>{error}</div>}
-        {response && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <SqlPreview
-              sql={response.generated_sql || response.error}
-              queryType={response.query_type}
-              latencyMs={response.execution?.latency_ms || 0}
-              summary={response.result?.nl_summary}
-              ambiguity={response.resolved_entities?.ambiguities?.[0]?.message}
-            />
-            <ResultTable data={response.result?.table} rowCount={response.execution?.row_count || 0} />
+    <>
+      <Header />
+      <div className="container">
+        <PageTitle title="Ask your data" subtitle="Type a question in plain English. QueryMind writes the SQL, checks it is safe and runs it read-only." />
+        <QueryInput value={query} onChange={setQuery} onSubmit={() => ask()} isLoading={busy} />
+        <div className="row" style={{ marginBottom: 16 }}>
+          {SUGGESTIONS.map((s) => <button key={s} className="chip" onClick={() => ask(s)} disabled={busy}>{s}</button>)}
+          <span className="spacer" />
+          <label className="row"><input type="checkbox" checked={clarify} onChange={(e) => setClarify(e.target.checked)} /> Ask me when unsure</label>
+          <label className="row"><input type="checkbox" checked={explain} onChange={(e) => setExplain(e.target.checked)} /> Explain</label>
+        </div>
+        {turns.length === 0 && <p className="muted">Try one of the suggestions above.</p>}
+        {turns.map((t) => (
+          <div key={t.id} className="turn">
+            <div className="question">{t.question}</div>
+            <AnswerCard turn={t} explain={explain} onChoose={choose(t)} />
           </div>
-        )}
-        <AdminNav />
+        ))}
       </div>
-    </div>
+    </>
   )
 }
