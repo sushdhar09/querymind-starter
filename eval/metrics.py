@@ -1,9 +1,9 @@
 import math
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any
 
 import sqlglot
-from sqlglot import diff, exp
+from sqlglot import diff
 from sqlglot.errors import SqlglotError
 
 

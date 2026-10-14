@@ -40,7 +40,7 @@ def test_query_is_logged_and_visible_in_admin_logs():
     client.post("/query", json={"nl_query": "Count orders by status"})
     client.post("/query", json={"nl_query": "Drop the customers table"})
     logs = admin.get("/api/v1/admin/logs?limit=5").json()
-    statuses = {l["nl_query"]: l["status"] for l in logs}
+    statuses = {entry["nl_query"]: entry["status"] for entry in logs}
     assert statuses["Count orders by status"] == "success" and statuses["Drop the customers table"] == "blocked"
 
 

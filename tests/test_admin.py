@@ -179,7 +179,7 @@ def test_logs_filter_pagination_and_total_header():
     anon.post("/query", json={"nl_query": "Drop the customers table"})
     anon.post("/query", json={"nl_query": "Count orders by status"})
     r = admin.get("/admin/logs?status=blocked&search=Drop")
-    assert r.status_code == 200 and r.json() and all(l["status"] == "blocked" for l in r.json())
+    assert r.status_code == 200 and r.json() and all(entry["status"] == "blocked" for entry in r.json())
     assert int(r.headers["x-total-count"]) >= len(r.json())
     page = admin.get("/admin/logs?limit=1&offset=1")
     assert len(page.json()) == 1 and int(page.headers["x-total-count"]) >= 2

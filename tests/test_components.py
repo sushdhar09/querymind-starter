@@ -4,14 +4,14 @@ from pathlib import Path
 import pytest
 
 from backend.components.example_retriever import ExampleRetriever
-from backend.embeddings import HashEmbedding
-from backend.schema_index import SchemaIndex
 from backend.components.query_classifier import QueryClassifier
 from backend.components.result_formatter import ResultFormatter
 from backend.components.schema_linker import SchemaLinker
 from backend.components.sql_executor import SqlExecutor
 from backend.components.sql_generator import GenerationError, SqlGenerator
-from backend.schemas import ExecutorOutput, GeneratorInput, ExampleIn
+from backend.embeddings import HashEmbedding
+from backend.schema_index import SchemaIndex
+from backend.schemas import ExampleIn, ExecutorOutput, GeneratorInput
 from backend.store import AppStore
 
 SCHEMA = Path(__file__).resolve().parent.parent / "data" / "schema.sql"

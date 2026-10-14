@@ -2,7 +2,14 @@ from backend.components.query_classifier import QueryClassifier
 from backend.components.result_formatter import ResultFormatter
 from backend.pipeline import Pipeline
 from backend.schemas import (
-    Ambiguity, ExecutorOutput, GeneratorInput, GeneratorOutput, LinkerOutput, QueryRequest, RetrieverOutput, ValidatorOutput,
+    Ambiguity,
+    ExecutorOutput,
+    GeneratorInput,
+    GeneratorOutput,
+    LinkerOutput,
+    QueryRequest,
+    RetrieverOutput,
+    ValidatorOutput,
 )
 
 

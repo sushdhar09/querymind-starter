@@ -3,8 +3,16 @@ import time
 from typing import Optional, Protocol
 
 from backend.schemas import (
-    ClassifierOutput, ExecutorOutput, FormatterOutput, GeneratorInput, GeneratorOutput, LinkerOutput,
-    PipelineResponse, QueryRequest, RetrieverOutput, ValidatorOutput,
+    ClassifierOutput,
+    ExecutorOutput,
+    FormatterOutput,
+    GeneratorInput,
+    GeneratorOutput,
+    LinkerOutput,
+    PipelineResponse,
+    QueryRequest,
+    RetrieverOutput,
+    ValidatorOutput,
 )
 
 log = logging.getLogger(__name__)

@@ -53,9 +53,9 @@ def test_column_metadata_upsert(store):
 def test_logs_filter_and_order(store):
     store.add_log(LogIn(nl_query="count orders", generated_sql="SELECT 1", status="success", row_count=1))
     store.add_log(LogIn(nl_query="drop it", status="blocked", failed_stage="classifier", error="nope"))
-    assert [l.nl_query for l in store.list_logs()] == ["drop it", "count orders"]
-    assert [l.status for l in store.list_logs(status="blocked")] == ["blocked"]
-    assert [l.nl_query for l in store.list_logs(search="count")] == ["count orders"]
+    assert [e.nl_query for e in store.list_logs()] == ["drop it", "count orders"]
+    assert [e.status for e in store.list_logs(status="blocked")] == ["blocked"]
+    assert [e.nl_query for e in store.list_logs(search="count")] == ["count orders"]
     assert len(store.list_logs(limit=1, offset=1)) == 1
 
 

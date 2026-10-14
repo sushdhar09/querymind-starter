@@ -7,7 +7,16 @@ from typing import Iterator, Optional
 
 from backend.config import APP_DB_PATH, DB_PATH, LLM_MODEL, LLM_PROVIDER
 from backend.schemas import (
-    INTERNAL_TABLES, ColumnMeta, ColumnMetaIn, ExampleIn, ExampleRecord, Guardrails, LogIn, LogRecord, LogStats, ModelConfig,
+    INTERNAL_TABLES,
+    ColumnMeta,
+    ColumnMetaIn,
+    ExampleIn,
+    ExampleRecord,
+    Guardrails,
+    LogIn,
+    LogRecord,
+    LogStats,
+    ModelConfig,
 )
 
 log = logging.getLogger(__name__)

@@ -1,8 +1,10 @@
 
-import sqlite3, random, os
-from datetime import timedelta, date, datetime
-
+import os
+import random
+import sqlite3
+from datetime import date, timedelta
 from pathlib import Path
+
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "querymind.db"
 SCHEMA_PATH = BASE_DIR / "schema.sql"
@@ -75,7 +77,8 @@ for i in range(1,5001):
     oid = i
     amt_row = conn.execute("SELECT total_amount FROM orders WHERE order_id=?", (oid,)).fetchone()
     amt = amt_row[0] if amt_row else round(random.uniform(20,2000),2)
-    if random.random()<0.1: amt = round(amt*0.9,2)
+    if random.random()<0.1:
+        amt = round(amt*0.9,2)
     pays.append((i, oid, amt, random.choice(methods), rand_date(365), random.choice(pay_status)))
 conn.executemany("INSERT INTO payments VALUES (?,?,?,?,?,?)", pays)
 

@@ -24,10 +24,10 @@ sys.path.insert(0, str(ROOT))
 import sqlglot  # noqa: E402
 from sqlglot import exp  # noqa: E402
 
-from backend.config import DATA_DIR, DB_PATH, OPENAI_API_KEY, ANTHROPIC_API_KEY, QUERY_TIMEOUT_S  # noqa: E402
+from backend.config import ANTHROPIC_API_KEY, DATA_DIR, DB_PATH, OPENAI_API_KEY, QUERY_TIMEOUT_S  # noqa: E402
 from backend.factory import App, build_app  # noqa: E402
 from backend.pipeline import Pipeline  # noqa: E402
-from backend.schemas import Guardrails, ModelConfig, QueryRequest, GeneratorOutput  # noqa: E402
+from backend.schemas import GeneratorOutput, Guardrails, ModelConfig, QueryRequest  # noqa: E402
 from backend.store import AppStore  # noqa: E402
 from eval import metrics  # noqa: E402
 
@@ -190,7 +190,7 @@ def pct(r: dict) -> str:
 def render_markdown(report: dict) -> str:
     m, test, g = report["meta"], report["test_set"], report["guardrails"]
     s = report["score"]
-    lines = [f"# QueryMind Evaluation Report", "",
+    lines = ["# QueryMind Evaluation Report", "",
              f"- Generated: {m['timestamp']}  |  commit `{m['git']['commit']}`{' (uncommitted changes)' if m['git']['dirty'] else ''}",
              f"- Provider: **{m['provider']}** ({m['model']}), temperature 0, embeddings `{m['embedding']}`, dialect sqlite",
              f"- Analytics DB sha256 `{g['database_sha256']}`, test set sha256 `{m['test_set_sha256']}`, Python {m['python']}",

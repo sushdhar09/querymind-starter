@@ -1,5 +1,4 @@
 import json
-import sqlite3
 from pathlib import Path
 
 import pytest
@@ -131,7 +130,9 @@ def test_example_library_quality():
 
 def test_example_library_does_not_leak_test_set():
     import sqlglot
-    norm = lambda s: sqlglot.parse_one(s, read="sqlite").sql(dialect="sqlite")
+    def norm(s):
+        return sqlglot.parse_one(s, read="sqlite").sql(dialect="sqlite")
+
     tests = json.loads((ROOT / "eval" / "test_queries.json").read_text())
     gt_sql = {norm(t["ground_truth_sql"]) for t in tests}
     gt_q = {t["natural_language_query"].lower() for t in tests}

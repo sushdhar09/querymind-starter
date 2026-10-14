@@ -61,7 +61,7 @@ def test_query_is_logged_with_request_id_but_not_the_question(caplog):
     rec = next(r for r in caplog.records if r.name == "querymind.query")
     assert rec.status == "success" and rec.provider == "mock" and rec.question_chars == len(q) and rec.latency_ms >= 0
     assert q not in " ".join(str(v) for r in caplog.records if r.name.startswith("querymind") for v in r.__dict__.values())
-    row = next(l for l in admin.get("/admin/logs?limit=20").json() if l["request_id"] == "corr-42")
+    row = next(entry for entry in admin.get("/admin/logs?limit=20").json() if entry["request_id"] == "corr-42")
     assert row["nl_query"] == q and row["status"] == "success"
 
 

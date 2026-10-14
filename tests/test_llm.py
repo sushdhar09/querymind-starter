@@ -5,7 +5,11 @@ import pytest
 
 import backend.llm as llm
 from backend.components.llm_generator import (
-    ConfiguredGenerator, LlmGenerator, build_system_prompt, build_user_prompt, parse_llm_output,
+    ConfiguredGenerator,
+    LlmGenerator,
+    build_system_prompt,
+    build_user_prompt,
+    parse_llm_output,
 )
 from backend.components.result_formatter import LlmSummarizer, ResultFormatter, default_summary
 from backend.components.sql_generator import GenerationError, SqlGenerator
@@ -13,8 +17,17 @@ from backend.config import DB_PATH, OPENAI_API_KEY
 from backend.llm import AnthropicClient, LLMError, OpenAIClient
 from backend.pipeline import Pipeline
 from backend.schemas import (
-    Ambiguity, ColumnContext, Example, ExecutorOutput, GeneratorInput, GeneratorOutput, LinkerOutput, ModelConfig,
-    QueryRequest, TableContext, ValidatorOutput,
+    Ambiguity,
+    ColumnContext,
+    Example,
+    ExecutorOutput,
+    GeneratorInput,
+    GeneratorOutput,
+    LinkerOutput,
+    ModelConfig,
+    QueryRequest,
+    TableContext,
+    ValidatorOutput,
 )
 
 

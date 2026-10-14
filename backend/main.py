@@ -9,14 +9,33 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
 from backend.config import (
-    ANTHROPIC_API_KEY, CORS_ORIGINS, DATA_DIR, DB_PATH, EMBEDDING_MODE, LOG_FORMAT, LOG_LEVEL, OPENAI_API_KEY,
+    ANTHROPIC_API_KEY,
+    CORS_ORIGINS,
+    DATA_DIR,
+    DB_PATH,
+    EMBEDDING_MODE,
+    LOG_FORMAT,
+    LOG_LEVEL,
+    OPENAI_API_KEY,
 )
 from backend.factory import build_app
 from backend.observability import RequestContextMiddleware, configure_logging, request_id_var
 from backend.pipeline import Pipeline
 from backend.schemas import (
-    ColumnMeta, ColumnMetaIn, Example, ExampleIn, ExampleRecord, Guardrails, LogIn, LogRecord, LogStats, ModelConfig,
-    ModelConfigOut, PipelineResponse, QueryRequest, SchemaTable,
+    ColumnMeta,
+    ColumnMetaIn,
+    Example,
+    ExampleIn,
+    ExampleRecord,
+    Guardrails,
+    LogIn,
+    LogRecord,
+    LogStats,
+    ModelConfig,
+    ModelConfigOut,
+    PipelineResponse,
+    QueryRequest,
+    SchemaTable,
 )
 from backend.security import query_rate_limit, require_admin
 from backend.store import AppStore
