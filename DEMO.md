@@ -1,6 +1,6 @@
 # QueryMind AI - Demo Script
 
-Status: through Step 4 of 11. Update the "Not done yet" table and re-run every scenario at the end.
+Status: through Step 5 of 11. Update the "Not done yet" table and re-run every scenario at the end.
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
@@ -46,8 +46,21 @@ Open http://localhost:8000/docs and use POST /api/v1/query.
 | Total revenue per category | aggregate over order_items, 5 categories |
 | Orders in last 30 days | date arithmetic, `DATE('now','-30 days')` |
 | Drop the customers table | status `blocked`, stage `classifier`, no SQL generated |
-| Show updated orders | status `blocked` (known false positive of the keyword classifier, fixed in Step 5) |
+| Show updated orders | allowed (word-aware classifier; only real destructive commands are blocked) |
 | what is the meaning of life | status `error`, stage `generator`, no fallback query |
+
+## 4b. Schema linking, ambiguity and sensitive columns (Step 5)
+
+| Action | Expected result |
+|---|---|
+| Ask "Show all customers from Mumbai" and open `resolved_entities` | tables `customers`, column `customers.city`, value hit `customers.city = 'Mumbai'` (found by scanning low-cardinality column values, no hard-coded cities) |
+| Ask "show revenue by month" | `ambiguities`: revenue could be `orders.total_amount` or `payments.amount` |
+| Same question with `"clarify_ambiguities": true` | status `needs_clarification`, message "Did you mean `orders.total_amount` or `payments.amount`?" |
+| Same question plus `"column_choices": {"revenue": "orders.total_amount"}` | ambiguity resolved, query runs |
+| Ask "orders revenue" or "revenue from payments" | resolved automatically from the table you mentioned |
+| Mark `customers.email` sensitive (`store.upsert_column_metadata`, admin UI in Step 9), then ask for customer email | status `blocked` at the validator: "Sensitive column(s) not allowed"; the column is also removed from `schema_context` (what the LLM sees) |
+
+`schema_context` returned by the linker lists the relevant tables with column descriptions, synonyms and foreign keys, plus the join-path tables (e.g. customers + products pulls in orders and order_items). Step 7 feeds it to the LLM.
 
 ## 5. Safety demo (validator and executor)
 
@@ -78,18 +91,16 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-90 tests: validator 54, components 15 (including executor timeout, truncation, write denial), pipeline 6 (fail-closed behaviour), store 7, API 8.
+118 tests across validator, components (classifier, linker, executor), schema index, pipeline (fail-closed and clarification), store and API.
 
 ## 8. Not done yet (be upfront)
 
 | Area | Current state | Step |
 |---|---|---|
 | SQL generation | Templates, not an LLM; unseen phrasing returns a clean error | 7 |
-| Schema Linker | Keyword-based; no ambiguity detection (total_amount vs payments.amount) | 5 |
-| Classifier | Substring matching; "updated orders" is wrongly blocked | 5 |
 | Example retrieval | First 3 examples, no similarity search; only 10 unique examples | 6 |
 | Admin writes | No add/edit/delete examples or guardrail toggles via API | 8 |
-| Frontend | Chat page works; 5 admin panels only dump JSON | 9 |
+| Frontend | Chat page works; 5 admin panels only dump JSON; no clarification prompt yet | 9 |
 | Evaluation | Old harness numbers are not reliable; held-out evaluation needed | 10 |
 | Auth, CORS, Docker, CI | Not done | 8, 11 |
 

@@ -15,7 +15,7 @@ class Classifier(Protocol):
 
 
 class Linker(Protocol):
-    def link(self, nl_query: str) -> LinkerOutput: ...
+    def link(self, nl_query: str, choices: Optional[dict[str, str]] = None) -> LinkerOutput: ...
 
 
 class Retriever(Protocol):
@@ -72,7 +72,11 @@ class Pipeline:
             resp.error = classified.reason or "Unsupported query type"
             return
 
-        resp.resolved_entities = self._stage("linker", self.linker.link, req.nl_query)
+        resp.resolved_entities = self._stage("linker", self.linker.link, req.nl_query, req.column_choices)
+        if req.clarify_ambiguities and resp.resolved_entities.ambiguities:
+            resp.status, resp.failed_stage = "needs_clarification", "linker"
+            resp.error = resp.resolved_entities.ambiguities[0].message
+            return
         resp.few_shot_examples = self._stage("retriever", self.retriever.retrieve, req.nl_query, 3).examples
 
         gen_in = GeneratorInput(nl_query=req.nl_query, dialect=req.dialect, linker=resp.resolved_entities,

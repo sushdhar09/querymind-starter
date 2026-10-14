@@ -51,9 +51,10 @@ MIGRATIONS = [
 
 
 class AppStore:
-    def __init__(self, path: Path = APP_DB_PATH, analytics_db: Path = DB_PATH):
+    def __init__(self, path: Path = APP_DB_PATH, analytics_db: Path = DB_PATH, metadata_seed: Optional[Path] = None):
         self.path = Path(path)
         self.analytics_db = Path(analytics_db)
+        self.metadata_seed = Path(metadata_seed) if metadata_seed else None
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
@@ -76,8 +77,24 @@ class AppStore:
             for i, script in enumerate(MIGRATIONS[version:], start=version + 1):
                 c.executescript(script)
                 c.execute(f"PRAGMA user_version = {i}")
+        self._seed_column_metadata()
         self._import_legacy()
         return self
+
+    def _seed_column_metadata(self) -> None:
+        if not self.metadata_seed or not self.metadata_seed.exists():
+            return
+        data = json.loads(self.metadata_seed.read_text(encoding="utf-8"))
+        with self._conn() as c:
+            for table, cols in data.items():
+                for col, m in cols.items():
+                    c.execute("INSERT OR IGNORE INTO column_metadata VALUES (?,?,?,?,?)",
+                              (table, col, m.get("description", ""), json.dumps(m.get("synonyms", [])), int(m.get("is_sensitive", False))))
+
+    def sensitive_columns(self) -> set[str]:
+        with self._conn() as c:
+            rows = c.execute("SELECT table_name, column_name FROM column_metadata WHERE is_sensitive = 1").fetchall()
+        return {f"{r[0]}.{r[1]}".lower() for r in rows}
 
     def _import_legacy(self) -> None:
         if not self.analytics_db.exists():

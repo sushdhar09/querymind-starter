@@ -12,20 +12,23 @@ from backend.components.schema_linker import SchemaLinker
 from backend.components.sql_executor import SqlExecutor
 from backend.components.sql_generator import SqlGenerator
 from backend.components.sql_validator import SqlValidator
-from backend.config import DB_PATH
+from backend.config import DATA_DIR, DB_PATH
 from backend.pipeline import Pipeline
+from backend.schema_index import SchemaIndex
 from backend.schemas import LogIn, PipelineResponse, QueryRequest
 from backend.store import AppStore
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger(__name__)
 
-store = AppStore().init()
+store = AppStore(metadata_seed=DATA_DIR / "column_metadata.json").init()
+index = SchemaIndex(store)
 
 
 def build_pipeline() -> Pipeline:
-    return Pipeline(QueryClassifier(), SchemaLinker(), ExampleRetriever(store), SqlGenerator(),
-                    SqlValidator(guardrails=store.get_guardrails), SqlExecutor(), ResultFormatter())
+    return Pipeline(QueryClassifier(index), SchemaLinker(index), ExampleRetriever(store), SqlGenerator(),
+                    SqlValidator(guardrails=store.get_guardrails, blocked_columns=store.sensitive_columns),
+                    SqlExecutor(), ResultFormatter())
 
 
 _pipeline = build_pipeline()

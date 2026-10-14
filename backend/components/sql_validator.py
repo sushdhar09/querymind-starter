@@ -1,6 +1,6 @@
 import logging
 import sqlite3
-from typing import Callable, Mapping, Union
+from typing import Callable, Mapping, Optional, Union
 
 import sqlglot
 from sqlglot import exp
@@ -43,9 +43,11 @@ def load_sqlite_schema(db_path=DB_PATH) -> dict[str, set[str]]:
 
 class SqlValidator:
     def __init__(self, schema: Union[SchemaMap, Callable[[], SchemaMap], None] = None,
-                 guardrails: Union[Guardrails, Callable[[], Guardrails], None] = None):
+                 guardrails: Union[Guardrails, Callable[[], Guardrails], None] = None,
+                 blocked_columns: Optional[Callable[[], set[str]]] = None):
         self._schema = schema or load_sqlite_schema
         self._guardrails = guardrails or Guardrails()
+        self._blocked_columns = blocked_columns
 
     def _get_schema(self) -> dict[str, set[str]]:
         s = self._schema() if callable(self._schema) else self._schema
@@ -92,6 +94,8 @@ class SqlValidator:
             return sorted(set(errors))
 
         errors = self._check_schema(tree, g, check_columns=is_query)
+        if not errors and is_query and self._blocked_columns:
+            errors = self._check_sensitive(tree, self._blocked_columns())
         if errors:
             return errors
         if is_query:
@@ -147,6 +151,28 @@ class SqlValidator:
             elif name not in known_columns and name not in defined_aliases and not has_derived:
                 errors.append(f"Unknown column '{col.name}'")
         return sorted(set(errors))
+
+    def _check_sensitive(self, tree: exp.Expression, blocked: set[str]) -> list[str]:
+        if not blocked:
+            return []
+        schema = self._get_schema()
+        alias_to_table = {(t.alias or t.name).lower(): t.name.lower() for t in tree.find_all(exp.Table)}
+        used_tables = set(alias_to_table.values()) & set(schema)
+        errors: set[str] = set()
+        for col in tree.find_all(exp.Column):
+            if isinstance(col.this, exp.Star):
+                tables = [alias_to_table.get(col.table.lower())] if col.table else list(used_tables)
+                for t in tables:
+                    errors |= {f"{t}.{c}" for c in schema.get(t, ()) if f"{t}.{c}" in blocked}
+                continue
+            name = col.name.lower()
+            tables = [alias_to_table.get(col.table.lower())] if col.table else [t for t in used_tables if name in schema[t]]
+            errors |= {f"{t}.{name}" for t in tables if t and f"{t}.{name}" in blocked}
+        for star in tree.find_all(exp.Star):
+            if isinstance(star.parent, (exp.Count, exp.Column)):
+                continue
+            errors |= {f"{t}.{c}" for t in used_tables for c in schema[t] if f"{t}.{c}" in blocked}
+        return [f"Sensitive column(s) not allowed: {sorted(errors)}. Select explicit non-sensitive columns."] if errors else []
 
     @staticmethod
     def _apply_limit(tree: exp.Expression, max_rows: int) -> exp.Expression:

@@ -8,6 +8,8 @@ Dialect = Literal["sqlite", "postgresql", "mysql"]
 
 class QueryRequest(BaseModel):
     nl_query: str = Field(min_length=1, max_length=1000)
+    clarify_ambiguities: bool = False
+    column_choices: dict[str, str] = {}
     dialect: Dialect = "sqlite"
     max_rows: int = Field(default=100, ge=1, le=1000)
 
@@ -31,14 +33,31 @@ class ClassifierOutput(BaseModel):
 
 
 class Ambiguity(BaseModel):
+    term: str = ""
     message: str
     candidates: list[str] = []
+
+
+class ColumnContext(BaseModel):
+    name: str
+    type: str = ""
+    description: str = ""
+    synonyms: list[str] = []
+
+
+class TableContext(BaseModel):
+    table: str
+    columns: list[ColumnContext] = []
+    foreign_keys: list[str] = []
 
 
 class LinkerOutput(BaseModel):
     resolved_tables: list[str] = []
     resolved_columns: list[str] = []
     ambiguities: list[Ambiguity] = []
+    schema_context: list[TableContext] = []
+    excluded_columns: list[str] = []
+    value_hits: list[str] = []
 
 
 class Example(BaseModel):
@@ -86,7 +105,7 @@ class FormatterOutput(BaseModel):
 
 
 class PipelineResponse(BaseModel):
-    status: Literal["success", "error", "blocked"]
+    status: Literal["success", "error", "blocked", "needs_clarification"]
     natural_language_query: str
     query_type: Optional[QueryType] = None
     resolved_entities: LinkerOutput = LinkerOutput()

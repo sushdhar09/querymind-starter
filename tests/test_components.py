@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from backend.components.example_retriever import ExampleRetriever
+from backend.schema_index import SchemaIndex
 from backend.components.query_classifier import QueryClassifier
 from backend.components.result_formatter import ResultFormatter
 from backend.components.schema_linker import SchemaLinker
@@ -27,21 +28,51 @@ def db(tmp_path):
     return path
 
 
+@pytest.fixture
+def index(db, tmp_path):
+    store = AppStore(tmp_path / "app.db", tmp_path / "none.db").init()
+    return SchemaIndex(store, db)
+
+
 @pytest.mark.parametrize("q,expected", [
     ("Delete all orders", "UNSUPPORTED"),
+    ("Show updated orders", "SELECT_SIMPLE"),
     ("Orders in the last 30 days", "SELECT_TEMPORAL"),
     ("Count orders by status", "SELECT_AGGREGATE"),
     ("Show all customers from Mumbai", "SELECT_SIMPLE"),
+    ("List orders with customer names", "SELECT_JOIN"),
 ])
-def test_classifier(q, expected):
-    assert QueryClassifier().classify(q).query_type == expected
+def test_classifier(q, expected, index):
+    assert QueryClassifier(index).classify(q).query_type == expected
 
 
-def test_linker():
-    out = SchemaLinker().link("revenue per customer")
-    assert {"customers", "orders"} <= set(out.resolved_tables)
-    assert SchemaLinker().link("zzz").resolved_tables == ["orders"]
+def test_classifier_without_index_still_classifies():
+    out = QueryClassifier().classify("Count orders by status")
+    assert out.query_type == "SELECT_AGGREGATE" and out.tables_mentioned == []
 
+
+def test_classifier_reports_mentions(index):
+    out = QueryClassifier(index).classify("List orders with customer names")
+    assert out.tables_mentioned == ["customers", "orders"] and out.columns_mentioned == ["customers.name"]
+
+
+def test_linker_resolves_tables_columns_and_values(index):
+    out = SchemaLinker(index).link("orders per customer")
+    assert out.resolved_tables == ["customers", "orders"]
+    assert SchemaLinker(index).link("zzz").resolved_tables == []
+
+
+def test_linker_context_includes_join_path_and_foreign_keys(index):
+    out = SchemaLinker(index).link("customers who bought products")
+    tables = {t.table for t in out.schema_context}
+    assert {"customers", "orders", "order_items", "products"} <= tables
+    orders = next(t for t in out.schema_context if t.table == "orders")
+    assert "orders.customer_id -> customers.customer_id" in orders.foreign_keys
+
+
+def test_linker_context_defaults_to_full_schema(index):
+    out = SchemaLinker(index).link("zzz")
+    assert len(out.schema_context) == 6
 
 def test_retriever(tmp_path):
     store = AppStore(tmp_path / "app.db", tmp_path / "none.db").init()

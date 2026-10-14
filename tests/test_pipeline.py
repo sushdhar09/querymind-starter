@@ -1,10 +1,18 @@
 from backend.components.query_classifier import QueryClassifier
 from backend.components.result_formatter import ResultFormatter
-from backend.components.schema_linker import SchemaLinker
 from backend.pipeline import Pipeline
 from backend.schemas import (
-    ExecutorOutput, GeneratorInput, GeneratorOutput, QueryRequest, RetrieverOutput, ValidatorOutput,
+    Ambiguity, ExecutorOutput, GeneratorInput, GeneratorOutput, LinkerOutput, QueryRequest, RetrieverOutput, ValidatorOutput,
 )
+
+
+class FakeLinker:
+    def __init__(self, ambiguities=()):
+        self.ambiguities, self.choices = list(ambiguities), None
+
+    def link(self, nl_query, choices=None):
+        self.choices = choices
+        return LinkerOutput(ambiguities=self.ambiguities)
 
 
 class FakeRetriever:
@@ -36,9 +44,9 @@ class FakeExecutor:
         return self.out
 
 
-def make(generator, executor=None):
+def make(generator, executor=None, linker=None):
     executor = executor or FakeExecutor()
-    p = Pipeline(QueryClassifier(), SchemaLinker(), FakeRetriever(), generator, FakeValidator(), executor, ResultFormatter())
+    p = Pipeline(QueryClassifier(), linker or FakeLinker(), FakeRetriever(), generator, FakeValidator(), executor, ResultFormatter())
     return p, executor
 
 
@@ -86,3 +94,26 @@ def test_executor_error_reported():
     p, _ = make(FakeGenerator("SELECT 1"), FakeExecutor(ExecutorOutput(error="no such table")))
     r = run(p)
     assert r.status == "error" and r.failed_stage == "executor" and r.error == "no such table"
+
+
+AMBIGUITY = Ambiguity(term="revenue", candidates=["orders.total_amount", "payments.amount"], message="'revenue' is ambiguous.")
+
+
+def test_ambiguity_does_not_block_by_default():
+    p, ex = make(FakeGenerator("SELECT 1"), linker=FakeLinker([AMBIGUITY]))
+    r = run(p, "revenue by month")
+    assert r.status == "success" and r.resolved_entities.ambiguities[0].term == "revenue"
+
+
+def test_clarification_requested_before_generation():
+    gen = FakeGenerator("SELECT 1")
+    p, ex = make(gen, linker=FakeLinker([AMBIGUITY]))
+    r = p.run(QueryRequest(nl_query="revenue by month", clarify_ambiguities=True))
+    assert r.status == "needs_clarification" and "ambiguous" in r.error and not gen.calls and not ex.executed
+
+
+def test_column_choices_are_forwarded_to_linker():
+    linker = FakeLinker()
+    p, _ = make(FakeGenerator("SELECT 1"), linker=linker)
+    p.run(QueryRequest(nl_query="revenue by month", clarify_ambiguities=True, column_choices={"revenue": "orders.total_amount"}))
+    assert linker.choices == {"revenue": "orders.total_amount"}

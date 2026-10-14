@@ -1,0 +1,50 @@
+{
+  "customers": {
+    "customer_id": {"description": "Unique customer identifier"},
+    "name": {"description": "Full name of the customer", "synonyms": ["customer name", "client name"]},
+    "email": {"description": "Customer contact email address", "synonyms": ["e-mail", "email address"]},
+    "city": {"description": "City where the customer lives", "synonyms": ["location"]},
+    "signup_date": {"description": "Date the customer registered", "synonyms": ["registration date", "joined", "signed up"]},
+    "description": {"description": "Free-text note about the customer"}
+  },
+  "products": {
+    "product_id": {"description": "Unique product identifier"},
+    "name": {"description": "Product display name", "synonyms": ["product name", "item name"]},
+    "category": {"description": "Product category, e.g. Electronics or Apparel", "synonyms": ["product category", "department"]},
+    "price": {"description": "Current list price of the product", "synonyms": ["list price"]},
+    "stock_quantity": {"description": "Units currently in stock", "synonyms": ["stock", "inventory", "stock level"]},
+    "created_at": {"description": "Date the product was added to the catalog"}
+  },
+  "orders": {
+    "order_id": {"description": "Unique order identifier"},
+    "customer_id": {"description": "Customer who placed the order (customers.customer_id)"},
+    "order_date": {"description": "Date the order was placed", "synonyms": ["purchase date", "ordered on", "ordered"]},
+    "total_amount": {"description": "Total value of the order as calculated at checkout. May differ from payments.amount because of refunds", "synonyms": ["revenue", "sales", "order value", "order total", "amount spent", "spent"]},
+    "status": {"description": "Order status: pending, completed or cancelled", "synonyms": ["order status"]},
+    "shipping_date": {"description": "Date the order was shipped", "synonyms": ["shipped on", "shipped"]}
+  },
+  "order_items": {
+    "item_id": {"description": "Unique order line identifier"},
+    "order_id": {"description": "Parent order (orders.order_id)"},
+    "product_id": {"description": "Product sold (products.product_id)"},
+    "quantity": {"description": "Units of the product on this order line", "synonyms": ["qty", "units sold"]},
+    "unit_price": {"description": "Price per unit at the time of sale", "synonyms": ["sale price"]},
+    "discount": {"description": "Discount applied to this order line"}
+  },
+  "payments": {
+    "payment_id": {"description": "Unique payment identifier"},
+    "order_id": {"description": "Order being paid (orders.order_id)"},
+    "amount": {"description": "Amount actually captured by the payment gateway. May differ from orders.total_amount because of refunds", "synonyms": ["revenue", "collected", "paid", "payment amount", "amount collected"]},
+    "payment_method": {"description": "How the customer paid: upi, net_banking, paypal or credit_card", "synonyms": ["method", "paid by"]},
+    "payment_date": {"description": "Date the payment was made", "synonyms": ["paid on"]},
+    "status": {"description": "Payment status: success, refunded or failed", "synonyms": ["payment status"]}
+  },
+  "reviews": {
+    "review_id": {"description": "Unique review identifier"},
+    "product_id": {"description": "Product reviewed (products.product_id)"},
+    "customer_id": {"description": "Customer who wrote the review (customers.customer_id)"},
+    "rating": {"description": "Star rating from 1 to 5", "synonyms": ["stars", "score"]},
+    "review_text": {"description": "Free-text review body", "synonyms": ["comment", "feedback"]},
+    "review_date": {"description": "Date the review was written"}
+  }
+}
