@@ -1,6 +1,6 @@
 # QueryMind AI - Demo Script
 
-Status: through Step 11c of 11. Update the "Not done yet" table and re-run every scenario at the end.
+Status: all 11 steps complete. See README.md for setup, limitations and the assignment coverage table. Update the "Not done yet" table and re-run every scenario at the end.
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.

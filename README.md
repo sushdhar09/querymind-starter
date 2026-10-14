@@ -1,278 +1,236 @@
+# QueryMind AI
 
-# QueryMind AI - Natural Language to SQL Engine
+Ask questions about a business database in plain English. QueryMind writes the SQL, checks that it is safe, runs it on a read-only connection and answers with a table, a chart and a short summary. It includes an admin console for curating the schema descriptions, few-shot examples, guardrails and model settings.
 
-> Text-to-SQL system with 7-component pipeline, achieving **74.8% overall** (60% Execution Accuracy, 100% Guardrails Compliance) on 25 test queries.
+- **Backend:** FastAPI, SQLite, sqlglot, ChromaDB. **Frontend:** Next.js.
+- **LLM providers:** OpenAI, Anthropic, Ollama, or an offline rule-based `mock` provider (the default).
+- **Tests:** 299 backend tests and 17 frontend tests pass; one live-OpenAI test is skipped unless a key is set.
+- **Honest status:** the pipeline, safety layers, admin console and evaluation harness are implemented and tested. The LLM paths have only been exercised with fake clients, and the Docker images have not been built yet. See [Known limitations](#known-limitations) before relying on any accuracy number.
 
-**Evaluation Result: PASS ✅** (Threshold: 65%)
+## Contents
 
-## 📊 Evaluation Report
+[Domain and data](#domain-and-data) | [How it works](#how-it-works) | [Quick start](#quick-start) | [Configuration](#configuration) | [Using it](#using-it) | [Safety model](#safety-model) | [Evaluation](#evaluation) | [Development](#development) | [Project layout](#project-layout) | [Assignment coverage](#assignment-coverage) | [Known limitations](#known-limitations)
 
-```
-📊 EVALUATION REPORT
-======================================================================
-Execution Accuracy: 15/25 = 60.0% (Weight 30%)
-Exact Match Rate:   3/25 = 12.0% (Weight 15%)
-Guardrails Compliance: 6/6 = 100.0% (Weight 15%)
+## Domain and data
 
-Partial Weighted Score: 34.8% / 60%
-Overall Estimated (with Admin UI 20% + Modularity 10% + Docs 10%): 74.8%
-Status: PASS ✅
-```
+**Why e-commerce:** everyone understands it, and it naturally contains every pattern the assignment asks for: many-to-many joins (orders and products through order items), aggregates (revenue by category, orders by status), several date fields for temporal questions, and a real ambiguity ("revenue" can mean the order total or the money actually captured).
 
-- **Backend:** FastAPI + SQLite (1000 customers, 5000 orders, 200 products)
-- **Frontend:** Next.js Admin Dashboard
-- **Pipeline:** 7 modular components (properly named)
+| Table | Rows | Table | Rows |
+|---|---|---|---|
+| customers | 1,000 | order_items | 15,000 |
+| products | 200 | payments | 5,000 |
+| orders | 5,000 | reviews | 3,000 |
 
-## 🏗️ Architecture
+The data is synthetic and seeded deterministically by `data/seed_db.py`. The full schema, relationships, value lists and the revenue ambiguity are documented in the [data dictionary](docs/DATA_DICTIONARY.md) (regenerate it with `python data/generate_data_dictionary.py`).
 
-```
-User Query (Natural Language)
-       ↓
-┌─────────────────────────────────────┐
-│ 1. Query Classifier                  │ → Detects query type (SELECT_SIMPLE, SELECT_JOIN, etc.)
-│    (query_classifier.py)             │   Blocks destructive operations (DROP, DELETE, etc.)
-├─────────────────────────────────────┤
-│ 2. Schema Linker                     │ → Links NL terms to tables/columns
-│    (schema_linker.py)                │   Resolves entities: orders, customers, products
-├─────────────────────────────────────┤
-│ 3. Example Retriever                 │ → Few-shot examples from DB (cosine similarity)
-│    (example_retriever.py)            │   Retrieves top 3 relevant Q-SQL pairs
-├─────────────────────────────────────┤
-│ 4. SQL Generator (Rule-Based)        │ → 25+ templates, 70%+ accuracy without LLM
-│    (sql_generator.py)                │   Handles aggregates, joins, temporal filters
-├─────────────────────────────────────┤
-│ 5. SQL Validator                     │ → Guardrails: max rows 100, block injection
-│    (sql_validator.py)                │   Adds LIMIT, checks blocked keywords
-├─────────────────────────────────────┤
-│ 6. SQL Executor                      │ → Executes sanitized SQL on SQLite (read-only)
-│    (sql_executor.py)                 │   Returns rows, columns, latency
-├─────────────────────────────────────┤
-│ 7. Result Formatter                  │ → Formats results + NL summary
-│    (result_formatter.py)             │   Table view + natural language explanation
-└─────────────────────────────────────┘
-       ↓
-   JSON Response: {generated_sql, execution, result, explanation}
-```
-
-## 📁 Project Structure
+## How it works
 
 ```
-querymind-starter/
-├── backend/
-│   ├── main.py (or run_standalone.py)   # FastAPI app - supports /query and /api/v1/query
-│   └── components/
-│       ├── query_classifier.py          # Component 1
-│       ├── schema_linker.py             # Component 2
-│       ├── example_retriever.py         # Component 3
-│       ├── sql_generator.py             # Component 4 - Core logic (rule-based, no LLM)
-│       ├── sql_validator.py             # Component 5
-│       ├── sql_executor.py              # Component 6
-│       └── result_formatter.py          # Component 7
-├── data/
-│   ├── querymind.db (1000 customers, 5000 orders, 15000 items, 200 products)
-│   ├── seed.py / seed_db.py             # Seeds DB without faker dependency
-│   └── schema.sql
-├── eval/
-│   ├── evaluation_harness.py            # Tests 25 queries
-│   ├── test_queries.json
-│   └── evaluation_report.json           # Final report (74.8%)
-├── frontend/
-│   ├── app/admin/page.tsx               # Admin UI - schema, examples, logs, query tester
-│   └── ...
-├── run_standalone.py                    # Standalone runner (fixes import issues)
-└── README.md
+question -> Classifier -> Schema Linker -> Example Retriever -> SQL Generator -> SQL Validator -> SQL Executor -> Result Formatter
+                                                                                      |  one retry with the error fed back
+                                                                                      +--> (executor error: one self-healing retry)
 ```
 
-## 🚀 Setup Instructions
+| Stage | What it does | Code |
+|---|---|---|
+| Classifier | Detects destructive requests and labels the question simple, aggregate, join or temporal; reports tables and columns mentioned | `backend/components/query_classifier.py` |
+| Schema Linker | Introspects the live schema, merges admin descriptions and synonyms, finds values such as city names by scanning low-cardinality columns, flags ambiguous terms, builds the schema context (with join paths and foreign keys) for the model, and excludes sensitive columns | `schema_linker.py`, `backend/schema_index.py` |
+| Example Retriever | Embeds the question with a local MiniLM model and returns the 3 most similar curated examples from ChromaDB; the index re-syncs automatically when examples change | `example_retriever.py` |
+| SQL Generator | `mock`: rule-based templates. Real providers: a prompt built from the schema context, detected values, ambiguities and examples; expects JSON back and can refuse with an explanation | `sql_generator.py`, `llm_generator.py`, `backend/llm.py` |
+| SQL Validator | Parses with sqlglot and enforces the safety rules below | `sql_validator.py` |
+| SQL Executor | Read-only SQLite connection with timeout, row cap and an authorizer | `sql_executor.py` |
+| Result Formatter | Table plus a 1 to 2 sentence summary (LLM, falling back to a deterministic summary) | `result_formatter.py` |
 
-### 1. Backend Setup
+Every stage exchanges typed Pydantic models (`backend/schemas.py`), is independently callable, and any failure returns a clear status (`blocked`, `error` or `needs_clarification`) instead of a fallback query. `backend/pipeline.py` wires the stages together and `backend/factory.py` assembles the real components.
+
+Two databases are used: the analytics database (`data/querymind.db`, read-only for the executor) and an app database (`data/app.db`) for examples, column metadata, query logs and settings, with versioned migrations.
+
+## Quick start
+
+### Docker (not yet built by the author, see limitations)
+
+```bash
+cp .env.example .env      # set ADMIN_API_KEY to a real secret; add OPENAI_API_KEY if you want a real LLM
+docker compose up --build
+```
+
+Frontend: http://localhost:3000. API docs: http://localhost:8000/docs. Data persists in the `querymind-data` volume. The demo database is seeded on first start (`SEED_ON_START=true`); to use your own SQLite file mount it at `/var/lib/querymind/querymind.db` and set `SEED_ON_START=false`.
+
+### Local development
+
+Requires Python 3.12+ and Node 20+.
 
 ```powershell
-cd querymind-starter
-
-# Create venv (if not exists)
+# Backend (Windows PowerShell; on macOS/Linux use: python3 -m venv .venv && source .venv/bin/activate)
 python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+copy .env.example .env                  # set ADMIN_API_KEY
+python data/seed_db.py                  # creates data/querymind.db
+uvicorn backend.main:app --reload --port 8000
 
-# Install deps
-.\.venv\Scripts\python.exe -m pip install fastapi uvicorn pydantic sqlglot requests
-# Or using uv:
-# uv sync
-# uv pip install fastapi uvicorn pydantic sqlglot requests
-
-# Seed DB (1000 customers, 5000 orders)
-.\.venv\Scripts\python.exe data/seed_db.py
-# Or
-.\.venv\Scripts\python.exe data/seed.py
-
-# Run backend (use standalone runner to avoid import errors)
-.\.venv\Scripts\python.exe run_standalone.py
-# Or
-# uv run python run_standalone.py
-# Or original:
-# uv run uvicorn backend.main:app --reload --port 8000
-```
-
-Backend runs at: `http://localhost:8000`
-- Docs: `http://localhost:8000/docs`
-- Health: `http://localhost:8000/health`
-
-### 2. Frontend Setup
-
-```powershell
+# Frontend (second terminal; on Windows PowerShell use npm.cmd if script execution is disabled)
 cd frontend
 npm install
-npm run dev
+npm run dev                             # http://localhost:3000
 ```
 
-Frontend runs at: `http://localhost:3000/admin`
+The example retriever downloads an ~80 MB embedding model the first time it is used, even with the `mock` provider (cached in `~/.cache/chroma`). Set `EMBEDDING_MODE=hash` to skip it (lower retrieval quality, useful for tests and CI).
 
-### 3. Run Evaluation
+## Configuration
 
-```powershell
-# Terminal 1 - Backend running on 8000
-# Terminal 2:
-cd querymind-starter
-.\.venv\Scripts\python.exe eval/evaluation_harness.py --api http://localhost:8000
-# Or
-# uv run python eval/evaluation_harness.py --api http://localhost:8000
+Copy `.env.example` to `.env`. Everything has a default except `ADMIN_API_KEY`.
 
-# Check report
-type eval\evaluation_report.json
+| Variable | Default | Purpose |
+|---|---|---|
+| `ADMIN_API_KEY` | none | Required for every `/admin/*` route; those routes return 503 if it is unset. The server warns if it is still `change-me` |
+| `LLM_PROVIDER` / `LLM_MODEL` | `mock` / `gpt-4o-mini` | Initial provider and model (changeable later in the admin UI) |
+| `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `OLLAMA_BASE_URL` | empty | Provider credentials; keys never leave the server |
+| `LLM_TIMEOUT_S` | 30 | Per LLM request |
+| `DB_PATH`, `APP_DB_PATH`, `CHROMA_PATH` | `data/...` | Analytics DB, app DB and vector index locations |
+| `EMBEDDING_MODE` | `onnx` | `onnx` (local MiniLM) or `hash` (offline, for tests) |
+| `QUERY_TIMEOUT_S`, `ABSOLUTE_MAX_ROWS` | 5, 10000 | Executor limits |
+| `CORS_ORIGINS` | localhost:3000 | Allowed browser origins (no wildcard) |
+| `RATE_LIMIT_PER_MIN` | 60 | Per client IP for `/query`; 0 disables |
+| `LOG_FORMAT`, `LOG_LEVEL` | `text`, `INFO` | `json` for one structured object per line |
+| `SEED_ON_START` | true | Docker only: seed the demo DB if missing |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Compiled into the frontend; must be the address the browser uses for the API |
+
+## Using it
+
+### Chat
+
+Open http://localhost:3000. With the default `mock` provider these questions work out of the box:
+
+- Show all customers from Mumbai
+- Count orders by status
+- Top 5 customers by total amount spent
+- Total revenue per product category
+- Orders in last 30 days
+- Count of successful payments by method
+- Show revenue by month (asks whether you mean order totals or captured payments)
+- Drop the customers table (blocked, nothing is generated)
+
+The mock provider only understands phrasings its templates were written for; "which clients live in delhi" returns a clean error. Set `LLM_PROVIDER=openai` and an API key (or choose the provider in the Model panel) to answer free-form questions.
+
+Results show a sortable, paged table, an automatic bar or line chart for two-column numeric results, the generated SQL, an optional "Explain" view, and a clarification prompt when a term is ambiguous. A mic button uses the browser speech API where available.
+
+### Admin console (http://localhost:3000/admin/...)
+
+Enter the admin key once per browser tab (kept in `sessionStorage`, never bundled).
+
+| Panel | What you can do |
+|---|---|
+| Schema Manager | Edit column descriptions and synonyms; mark columns sensitive (hidden from the LLM and blocked in queries) |
+| Examples Manager | Add, edit, delete few-shot examples (SQL is validated first); filter; semantic search with similarity scores |
+| Query Logs | Stats, filters, pagination, CSV export (formula-injection safe) |
+| Guardrails | Choose blocked SQL operations, max rows, allowed table prefixes, blocked tables; applies to the next query |
+| Model Config | Provider, model, temperature, max tokens, dialect, LLM summaries on or off |
+
+### API
+
+Interactive docs at `/docs`. Every route except `/health` and `/ready` is also served under `/api/v1` (the frontend uses that prefix).
+
+| Method and path | Auth | Purpose |
+|---|---|---|
+| `POST /query` | none (rate limited) | `{"nl_query": "...", "max_rows": 100, "clarify_ambiguities": false, "column_choices": {}}` |
+| `GET /health`, `GET /ready` | none | Liveness; readiness with database and provider checks |
+| `GET /admin/schema`, `PUT /admin/schema/{table}/{column}` | key | Schema browsing and metadata edits |
+| `GET, POST /admin/examples`, `PUT, DELETE /admin/examples/{id}`, `GET /admin/examples/search?q=` | key | Example CRUD and semantic search |
+| `GET /admin/logs`, `GET /admin/logs/export`, `GET /admin/stats` | key | Logs (with `X-Total-Count`), CSV export, summary stats |
+| `GET, PUT /admin/guardrails`, `GET, PUT /admin/config` | key | Guardrails and model settings |
+
+Send the key as `X-API-Key: <key>` (or `Authorization: Bearer <key>`). Every response carries `X-Request-ID`, which also appears in the logs and in the query log table.
+
+```bash
+curl -s localhost:8000/query -H 'Content-Type: application/json' -d '{"nl_query":"Count orders by status"}'
+curl -s localhost:8000/admin/stats -H 'X-API-Key: change-me'
 ```
 
-Expected:
-```
-Execution Accuracy: 15/25 = 60%
-Guardrails: 6/6 = 100%
-Overall: 74.8% PASS
-```
+## Safety model
 
-## 🔌 API Endpoints
+A destructive statement has to get past several independent layers:
 
-Supports BOTH `/query` and `/api/v1/query` to prevent 404 errors in harness:
+1. **Classifier** rejects destructive requests (leading verbs such as delete or drop, SQL fragments, stacked commands). It is a heuristic and is not relied on alone.
+2. **Validator** (sqlglot AST, not string matching): exactly one `SELECT` or `UNION`; no DML, DDL, `PRAGMA`, `ATTACH`, `VACUUM`, transactions or dangerous functions anywhere in the tree (including inside CTEs); every table, column and alias must exist; internal tables, `sqlite_master` and schema-qualified names are blocked; sensitive columns are blocked even through `SELECT *`; `LIMIT` is added or lowered to the guardrail maximum; comments are stripped. Toggling an operation off in the Guardrails panel lets it past this layer only.
+3. **Executor:** read-only connection with `query_only`, a SQLite authorizer that denies everything except reads, a progress-handler timeout and a row cap.
+4. **Prompt hygiene:** the question is wrapped in tags and treated as data; sensitive columns are never in the prompt.
+5. **Service level:** admin routes need a key and fail closed, CORS is an allow-list, `/query` is rate limited, logs never contain keys, query strings or question text, and unexpected errors return a generic body with a request ID.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/query` | Text-to-SQL (legacy) |
-| POST | `/api/v1/query` | Text-to-SQL (v1) |
-| GET | `/admin/schema` & `/api/v1/admin/schema` | DB schema |
-| GET | `/admin/examples` & `/api/v1/admin/examples` | Few-shot examples |
-| GET | `/admin/logs` & `/api/v1/admin/logs` | Query logs |
-| GET | `/admin/guardrails` | Guardrail config |
-| GET | `/admin/config` | LLM config |
-| GET | `/docs` | Swagger UI |
-| GET | `/health` | Health check |
+## Evaluation
 
-### Request Example
-```json
-{
-  "nl_query": "Count orders by status",
-  "max_rows": 100
-}
+```bash
+python eval/evaluation_harness.py                      # offline mock provider
+python eval/evaluation_harness.py --provider openai    # needs OPENAI_API_KEY
 ```
 
-### Response Example
-```json
-{
-  "natural_language_query": "Count orders by status",
-  "query_type": "SELECT_AGGREGATE",
-  "generated_sql": "SELECT status, COUNT(*) FROM orders GROUP BY status LIMIT 100",
-  "execution": {
-    "rows": [["completed", 1650], ["pending", 1680], ["cancelled", 1670]],
-    "columns": ["status", "COUNT(*)"],
-    "row_count": 3,
-    "latency_ms": 12
-  },
-  "result": {
-    "table": [{"status": "completed", "COUNT(*)": 1650}, ...],
-    "nl_summary": "Found 3 rows"
-  }
-}
+The harness runs the real pipeline in-process, never substitutes fallback SQL, and exits non-zero if a gate fails (execution accuracy below 50%, any guardrail miss, the database file changing, false positives). Reports are written to `eval/reports/` as Markdown and JSON with the commit hash and data hashes.
+
+Committed baseline, **`mock` provider** ([full report](eval/reports/eval_mock_20261014_114445.md)):
+
+| Measure | Result |
+|---|---|
+| Execution accuracy, original 25 questions | 25/25 (95% CI 87-100%) |
+| Exact match (sqlglot AST diff) | 25/25 |
+| Execution accuracy, same questions reworded | **6/25 (24%)** |
+| Guardrails (40 natural-language attacks and 49 attack SQL statements) | 89/89; executor alone denies 36/36 destructive statements; database file unchanged |
+| False positives | 0/12 benign questions, 0/67 legitimate SQL statements |
+
+**Read the first rows with care.** The templates were written while looking at those 25 questions, so 100% says nothing about generalisation; the reworded set (24%) is the honest signal for `mock`. A meaningful accuracy number needs a run with a real LLM, which has not been done. With 25 questions the confidence intervals are wide.
+
+## Development
+
+```bash
+python -m pytest -q          # 299 tests (needs data/querymind.db: python data/seed_db.py)
+ruff check .                 # lint
+cd frontend && npm test && npm run build
 ```
 
-## 🛡️ Guardrails (100% Compliance)
+GitHub Actions (`.github/workflows/ci.yml`) runs lint, the backend tests, the evaluation gates and the frontend tests and build; Dependabot proposes weekly dependency updates. The workflow was verified by running each of its steps locally but has not run on GitHub yet.
 
-1. **Max Rows:** Enforced LIMIT 100 on all queries
-2. **Blocked Keywords:** DROP, DELETE, UPDATE, INSERT, TRUNCATE, ALTER, CREATE
-3. **Read-Only:** SQLite opened in `mode=ro`
-4. **SQL Injection Protection:** Validator sanitizes input
-5. **Destructive Operation Blocking:** Classifier marks UNSUPPORTED
-6. **Latency Tracking:** Execution time measured
+## Project layout
 
-Tested with 6 injection attempts: All blocked ✅
-
-## 🧠 SQL Generator - Rule-Based (No LLM)
-
-To achieve 60%+ without LLM dependency, generator uses 25+ templates:
-
-- `Count orders by status` → `SELECT status, COUNT(*) FROM orders GROUP BY status`
-- `Show all customers from Mumbai` → `SELECT * FROM customers WHERE city = 'Mumbai'`
-- `Top 5 customers by total amount spent` → JOIN customers + orders + GROUP BY
-- `Orders in last 30 days` → `WHERE order_date >= date('now','-30 days')`
-- `Total revenue per category` → JOIN products + order_items + GROUP BY category
-- And 20+ more patterns for temporal, aggregate, join queries
-
-Advantage: No API key needed, deterministic, fast (<10ms generation), passes offline evaluation.
-
-## 🖥️ Admin UI Features (20% marks)
-
-- **Schema Viewer:** Tables, columns, types
-- **Example Manager:** View/edit few-shot examples
-- **Query Tester:** Natural language input → SQL + results
-- **Logs:** Query history with latency
-- **Guardrails Config:** View blocked keywords, max rows
-- **Live Stats:** Execution accuracy
-
-## 📦 Tech Stack
-
-- **Backend:** FastAPI, SQLite, Python 3.12, Pydantic
-- **Frontend:** Next.js, TypeScript, Tailwind
-- **Evaluation:** Custom harness (25 queries)
-- **No External LLM:** Rule-based generator (can be swapped with LLM later)
-
-## 🎯 Key Fixes Applied
-
-1. **Import Error Fixed:** Created `run_standalone.py` that adds `backend/components` to `sys.path` and tries `backend.components.*` then `components.*`
-2. **404 Fixed:** Backend serves both `/query` and `/api/v1/query` (and all admin routes)
-3. **DB Seeding Fixed:** `seed_db.py` uses no `faker` dependency, seeds 1000 customers, 5000 orders deterministically (seed 42)
-4. **Generator Fixed:** Rule-based templates instead of dummy SQL `SELECT * FROM orders`
-5. **Port Conflict Fixed:** Kill existing process before starting new one
-
-## 📸 Screenshots for Submission
-
-1. `http://localhost:8000/docs` - FastAPI Swagger
-2. `http://localhost:3000/admin` - Admin dashboard
-3. Terminal showing `Evaluation: 74.8% PASS`
-4. `eval/evaluation_report.json` file
-
-## 🏁 Final Checklist
-
-- [x] Backend runs on 8000 with 7 components loaded ✅
-- [x] Frontend runs on 3000 ✅
-- [x] DB seeded (1000 customers, 5000 orders) ✅
-- [x] Evaluation harness passes >65% (74.8%) ✅
-- [x] Guardrails 100% ✅
-- [x] API serves both /query and /api/v1/query ✅
-- [x] README with architecture ✅
-- [ ] Screenshots (take now)
-- [ ] Zip for submission
-
-## 📝 Submission
-
-Zip the folder:
-```powershell
-Compress-Archive -Path * -DestinationPath QueryMind_Submission_74.8_PASS.zip
+```
+backend/            FastAPI app, pipeline, typed schemas, components/, store, security, observability
+data/               schema.sql, seed_db.py, seed JSON (column metadata, 42 examples), data dictionary generator
+docs/               DATA_DICTIONARY.md
+eval/               evaluation harness, metrics, test/paraphrase/guardrail sets, committed reports
+frontend/           Next.js chat UI and admin panels
+tests/              backend tests
+docker/, Dockerfile, docker-compose.yml, .github/
+DEMO.md             step-by-step demo script and status table
 ```
 
-Include:
-- All code
-- `data/querymind.db`
-- `eval/evaluation_report.json`
-- `README.md`
-- Screenshots folder
+## Assignment coverage
 
----
+| Deliverable | Status |
+|---|---|
+| Text-to-SQL pipeline, all components, independently callable with typed schemas | Done |
+| Database, seed script, data dictionary | Done (synthetic data) |
+| FastAPI backend with `/query` and the admin routes | Done |
+| Next.js chat UI and five admin panels with persisted CRUD | Done; verified by build, unit tests and manual checks, no browser test suite |
+| 30+ curated few-shot examples | 42, all verified to validate and return rows, none overlapping the evaluation questions |
+| Evaluation report on a 25-query set | Harness and mock baseline done; **no real-LLM run yet** |
+| README | This file |
 
-**Author:** Sush D
-**Date:** Oct 2026
-**Result:** 74.8% PASS (Threshold 65%)
+Bonus items: ambiguity resolution (done), self-healing SQL (done), chart auto-generation (done), voice input (done), query explanation (partial: shows the model's explanation and what was resolved, not a generated plain-English breakdown of the SQL). Not done: sqlglot dialect transpilation, semantic caching.
+
+## Known limitations
+
+- **No real-LLM verification.** The OpenAI, Anthropic and Ollama code paths are tested against fakes only. Accuracy with a real model is unmeasured.
+- **The mock provider memorised the test set** (100% on the original wording, 24% reworded). It exists for offline demos and tests.
+- **SQLite only.** The dialect setting changes the prompt, but the executor, schema loader and validator are SQLite-specific; PostgreSQL and MySQL are not supported.
+- **Docker images have not been built** (Docker was unavailable during development); the pieces were exercised separately. CI has not run on GitHub.
+- **Admin auth is a single shared key**, and `/query` is public. Use per-user login or SSO and a trusted-proxy setting for the rate limiter before exposing this beyond a demo.
+- **With a hosted LLM provider, question context and up to 20 result rows (for summaries) leave your machine.** Turn off LLM summaries or use Ollama if that matters.
+- **Heuristics:** the classifier and ambiguity detection are keyword and synonym based; non-English or unusually phrased requests may be misjudged. The validator and executor are the real protection.
+- **Costs:** a question can trigger up to four LLM calls (generate, retry, self-heal, summarise); there is no caching or token budget across requests.
+- **Frontend:** no browser-level tests; the sort control is not keyboard accessible.
+- **Small sample:** the evaluation set has 25 questions.
+
+## Troubleshooting
+
+- `npm` blocked by PowerShell execution policy: use `npm.cmd`.
+- Admin pages say the key was rejected: the backend `ADMIN_API_KEY` must match what you type; a 503 means the server has none configured.
+- First query is slow (a few seconds): the embedding model loads on first use; it is cached afterwards.
+- `Analytics database not found`: run `python data/seed_db.py`.
