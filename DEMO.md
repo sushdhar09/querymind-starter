@@ -1,6 +1,6 @@
 # QueryMind AI - Demo Script
 
-Status: through Step 6 of 11. Update the "Not done yet" table and re-run every scenario at the end.
+Status: through Step 7 of 11. Update the "Not done yet" table and re-run every scenario at the end.
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
@@ -72,6 +72,21 @@ Open http://localhost:8000/docs and use POST /api/v1/query.
 
 42 curated examples (8 simple, 14 aggregate, 8 join, 12 temporal), all verified to validate and return rows on the real data. None overlaps with the 25 held-out evaluation questions, enforced by a test. Embeddings come from ChromaDB's MiniLM model (ONNX, runs locally, no API key). If the model is unavailable the retriever falls back to keyword ranking.
 
+## 4d. LLM generation, self-healing and summaries (Step 7)
+
+Switch provider by setting `LLM_PROVIDER=openai` and `OPENAI_API_KEY` in `.env` (or via the model config in the store; admin UI in Step 9). Providers: `mock` (offline templates, default), `openai`, `ollama` (local, OpenAI-compatible) and `anthropic`.
+
+| Action | Expected result |
+|---|---|
+| Ask a phrasing the templates never saw, e.g. "Which city has the most customers?" with provider `openai` | the LLM writes the SQL from the schema context, column descriptions, detected values and the 3 retrieved examples; the validator still checks it before execution |
+| Look at `explanation` in the response | one sentence from the model, including which column it chose for an ambiguous term |
+| Ask something unanswerable ("what is the meaning of life") | the model returns `sql: null`; status `error` at the generator with its explanation, nothing executes |
+| Force a wrong column (or watch a real failure) | the validator/executor error is sent back with the previous SQL for one corrected attempt; `self_healed: true` when the second attempt succeeds |
+| Ask for a result and read `result.nl_summary` | 1-2 sentence plain-English answer written from the first 20 rows; falls back to a deterministic summary if the LLM fails or is switched off |
+| Make the model misbehave (tests simulate an injected `DELETE FROM orders`) | blocked at the validator, retried once, never executed; the table still has 5000 rows |
+
+Prompt safety: the question is wrapped in `<question>` tags and the system prompt tells the model to treat it as data. Sensitive columns never reach the prompt. API keys are never logged or returned in error messages.
+
 ## 5. Safety demo (validator and executor)
 
 Run in a Python shell (`from backend.main import build_pipeline; v = build_pipeline().validator`):
@@ -107,7 +122,7 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 
 | Area | Current state | Step |
 |---|---|---|
-| SQL generation | Templates, not an LLM; unseen phrasing returns a clean error | 7 |
+| Live LLM verification | OpenAI/Anthropic/Ollama code paths are tested with fakes only; a real key has not been exercised yet | 7 |
 | Admin writes | No add/edit/delete examples or guardrail toggles via API | 8 |
 | Frontend | Chat page works; 5 admin panels only dump JSON; no clarification prompt yet | 9 |
 | Evaluation | Old harness numbers are not reliable; held-out evaluation needed | 10 |

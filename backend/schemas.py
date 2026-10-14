@@ -76,6 +76,7 @@ class GeneratorInput(BaseModel):
     linker: LinkerOutput = LinkerOutput()
     examples: list[Example] = []
     feedback: Optional[str] = None
+    previous_sql: Optional[str] = None
 
 
 class GeneratorOutput(BaseModel):
@@ -103,6 +104,7 @@ class FormatterOutput(BaseModel):
     nl_summary: str = ""
     columns: list[str] = []
     row_count: int = 0
+    truncated: bool = False
 
 
 class PipelineResponse(BaseModel):
@@ -117,6 +119,7 @@ class PipelineResponse(BaseModel):
     execution: ExecutorOutput = ExecutorOutput()
     error: Optional[str] = None
     failed_stage: Optional[str] = None
+    self_healed: bool = False
     total_latency_ms: int = 0
 
 
@@ -149,6 +152,7 @@ class ModelConfig(BaseModel):
     temperature: float = Field(default=0.0, ge=0, le=2)
     max_tokens: int = Field(default=1024, ge=64, le=32000)
     dialect: Dialect = "sqlite"
+    llm_summary: bool = True
 
 
 class LogIn(BaseModel):

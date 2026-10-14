@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from backend.components.example_retriever import ExampleRetriever
+from backend.embeddings import HashEmbedding
 from backend.schema_index import SchemaIndex
 from backend.components.query_classifier import QueryClassifier
 from backend.components.result_formatter import ResultFormatter
@@ -76,10 +77,10 @@ def test_linker_context_defaults_to_full_schema(index):
 
 def test_retriever(tmp_path):
     store = AppStore(tmp_path / "app.db", tmp_path / "none.db").init()
-    store.create_example(ExampleIn(question="q1", sql="SELECT 1"))
-    store.create_example(ExampleIn(question="q2", sql="SELECT 2"))
-    out = ExampleRetriever(store).retrieve("anything", top_k=1)
-    assert [e.question for e in out.examples] == ["q1"]
+    store.create_example(ExampleIn(question="average price by category", sql="SELECT 1"))
+    store.create_example(ExampleIn(question="failed payments list", sql="SELECT 2"))
+    out = ExampleRetriever(store, tmp_path / "chroma", HashEmbedding()).retrieve("show failed payments", top_k=1)
+    assert [e.question for e in out.examples] == ["failed payments list"]
 
 def test_generator_matches_and_fails_closed():
     gen = SqlGenerator()

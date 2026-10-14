@@ -7,13 +7,15 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from backend.components.example_retriever import ExampleRetriever
 from backend.components.query_classifier import QueryClassifier
-from backend.components.result_formatter import ResultFormatter
+from backend.components.llm_generator import ConfiguredGenerator, LlmGenerator
+from backend.components.result_formatter import LlmSummarizer, ResultFormatter
 from backend.components.schema_linker import SchemaLinker
 from backend.components.sql_executor import SqlExecutor
 from backend.components.sql_generator import SqlGenerator
 from backend.components.sql_validator import SqlValidator
 from backend.config import DATA_DIR, DB_PATH, EMBEDDING_MODE
 from backend.embeddings import get_embedding_function
+from backend.llm import build_client
 from backend.pipeline import Pipeline
 from backend.schema_index import SchemaIndex
 from backend.schemas import LogIn, PipelineResponse, QueryRequest
@@ -29,9 +31,10 @@ retriever = ExampleRetriever(store, embedding_function=get_embedding_function(EM
 
 
 def build_pipeline() -> Pipeline:
-    return Pipeline(QueryClassifier(index), SchemaLinker(index), retriever, SqlGenerator(),
+    return Pipeline(QueryClassifier(index), SchemaLinker(index), retriever,
+                    ConfiguredGenerator(SqlGenerator(), LlmGenerator(build_client, store.get_model_config), store.get_model_config),
                     SqlValidator(guardrails=store.get_guardrails, blocked_columns=store.sensitive_columns),
-                    SqlExecutor(), ResultFormatter())
+                    SqlExecutor(), ResultFormatter(LlmSummarizer(build_client, store.get_model_config)))
 
 
 _pipeline = build_pipeline()

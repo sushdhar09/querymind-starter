@@ -46,7 +46,8 @@ class StageError(Exception):
 
 class Pipeline:
     def __init__(self, classifier: Classifier, linker: Linker, retriever: Retriever, generator: Generator,
-                 validator: Validator, executor: Executor, formatter: Formatter):
+                 validator: Validator, executor: Executor, formatter: Formatter, self_heal: bool = True):
+        self.self_heal = self_heal
         self.classifier, self.linker, self.retriever = classifier, linker, retriever
         self.generator, self.validator, self.executor, self.formatter = generator, validator, executor, formatter
 
@@ -89,6 +90,8 @@ class Pipeline:
 
         resp.generated_sql = validated.sanitized_sql
         resp.execution = self._stage("executor", self.executor.execute, validated.sanitized_sql, req.max_rows)
+        if resp.execution.error and self.self_heal:
+            self._self_heal(gen_in, req, resp)
         if resp.execution.error:
             resp.status, resp.failed_stage, resp.error = "error", "executor", resp.execution.error
             return
@@ -101,13 +104,31 @@ class Pipeline:
         validated = self._stage("validator", self.validator.validate, generated.sql, max_rows, gen_in.dialect)
         if not validated.valid:
             resp.generated_sql = generated.sql
-            retry_in = gen_in.model_copy(update={"feedback": "; ".join(validated.errors)})
+            retry_in = gen_in.model_copy(update={"feedback": "; ".join(validated.errors), "previous_sql": generated.sql})
             generated = self._stage("generator", self.generator.generate, retry_in)
             validated = self._stage("validator", self.validator.validate, generated.sql, max_rows, gen_in.dialect)
         resp.explanation = generated.explanation
         if not validated.valid:
             resp.generated_sql = generated.sql
         return validated
+
+    def _self_heal(self, gen_in: GeneratorInput, req: QueryRequest, resp: PipelineResponse) -> None:
+        previous = resp.generated_sql
+        retry_in = gen_in.model_copy(update={"feedback": f"Execution error: {resp.execution.error}", "previous_sql": previous})
+        try:
+            generated = self.generator.generate(retry_in)
+            if generated.sql.strip().lower() == previous.strip().lower():
+                return
+            validated = self.validator.validate(generated.sql, req.max_rows, req.dialect)
+            if not validated.valid:
+                return
+            execution = self.executor.execute(validated.sanitized_sql, req.max_rows)
+        except Exception as e:
+            log.warning("Self-healing attempt failed: %s", e)
+            return
+        if not execution.error:
+            resp.generated_sql, resp.execution, resp.explanation, resp.self_healed = (
+                validated.sanitized_sql, execution, generated.explanation, True)
 
     @staticmethod
     def _stage(name, fn, *args):

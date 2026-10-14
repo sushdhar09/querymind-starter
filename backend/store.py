@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
-from backend.config import APP_DB_PATH, DB_PATH, LLM_PROVIDER
+from backend.config import APP_DB_PATH, DB_PATH, LLM_MODEL, LLM_PROVIDER
 from backend.schemas import (
     ColumnMeta, ColumnMetaIn, ExampleIn, ExampleRecord, Guardrails, LogIn, LogRecord, ModelConfig,
 )
@@ -249,7 +249,7 @@ class AppStore:
 
     def get_model_config(self) -> ModelConfig:
         data = self._get_setting("model_config")
-        return ModelConfig(**data) if data else ModelConfig(provider=LLM_PROVIDER if LLM_PROVIDER in ("mock", "openai", "anthropic", "ollama") else "mock")
+        return ModelConfig(**data) if data else ModelConfig(provider=LLM_PROVIDER if LLM_PROVIDER in ("mock", "openai", "anthropic", "ollama") else "mock", model=LLM_MODEL)
 
     def set_model_config(self, m: ModelConfig) -> ModelConfig:
         self._set_setting("model_config", m.model_dump())
