@@ -1,0 +1,104 @@
+# QueryMind AI - Demo Script
+
+Status: through Step 4 of 11. Update the "Not done yet" table and re-run every scenario at the end.
+
+## 1. What to say (30 seconds)
+A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
+
+## 2. Architecture
+
+```
+POST /api/v1/query { "nl_query": "...", "max_rows": 100 }
+  1. Classifier    query type; blocks destructive intent      -> status "blocked"
+  2. Schema Linker relevant tables
+  3. Retriever     few-shot examples from app.db
+  4. Generator     SQL (template-based for now)
+  5. Validator     sqlglot safety + schema checks, adds LIMIT
+                   invalid -> one retry with the error fed back, else "blocked"
+  6. Executor      read-only SQLite, timeout, row cap
+  7. Formatter     table + summary
+  -> log row saved to app.db -> JSON response
+```
+
+- Components: `backend/components/`. Orchestrator: `backend/pipeline.py`. Typed contracts: `backend/schemas.py`.
+- Any stage failure returns a clear error. There is no fallback query.
+
+| DB | File | Access |
+|---|---|---|
+| Analytics (customers, orders, order_items, products, payments, reviews) | `data/querymind.db` | read-only, executor only |
+| App data (examples, column metadata, logs, settings) | `data/app.db` | read/write, admin side |
+
+## 3. Setup
+
+```powershell
+.\.venv\Scripts\python.exe data/seed_db.py
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --port 8000
+```
+
+Open http://localhost:8000/docs and use POST /api/v1/query.
+
+## 4. Live scenarios (outputs recorded 2026-10-13)
+
+| Question | Expected result |
+|---|---|
+| Count orders by status | success, 3 rows (cancelled 1670, ...), `LIMIT 100` added |
+| Top 5 customers by total amount spent | 3-table JOIN, first row Neha Gupta 48732.43 |
+| Total revenue per category | aggregate over order_items, 5 categories |
+| Orders in last 30 days | date arithmetic, `DATE('now','-30 days')` |
+| Drop the customers table | status `blocked`, stage `classifier`, no SQL generated |
+| Show updated orders | status `blocked` (known false positive of the keyword classifier, fixed in Step 5) |
+| what is the meaning of life | status `error`, stage `generator`, no fallback query |
+
+## 5. Safety demo (validator and executor)
+
+Run in a Python shell (`from backend.main import build_pipeline; v = build_pipeline().validator`):
+
+| SQL | Result |
+|---|---|
+| `SELECT 1; DROP TABLE orders` | rejected: Exactly one SQL statement is allowed |
+| `SELECT * FROM query_logs` | rejected: Table 'query_logs' is not accessible |
+| `SELECT * FROM orders LIMIT 99999` | allowed, rewritten to `LIMIT 100` |
+| `PRAGMA writable_schema=1` | rejected: Only SELECT statements are allowed |
+| `WITH d AS (DELETE FROM orders RETURNING *) SELECT * FROM d` | rejected: DELETE blocked |
+
+Defence in depth:
+1. Classifier blocks destructive intent in the question.
+2. Validator (sqlglot AST): single SELECT/UNION, no DML/DDL/PRAGMA/ATTACH or dangerous functions anywhere, known tables and columns only, internal tables blocked, LIMIT enforced.
+3. Executor: read-only connection, `query_only`, SQLite authorizer denying non-SELECT actions, 5 s timeout, row cap.
+
+## 6. Admin data
+
+After running the scenarios, open `/api/v1/admin/logs`: every query is logged with status, latency and failed stage.
+
+Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/guardrails`, `/admin/config`.
+
+## 7. Tests
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+90 tests: validator 54, components 15 (including executor timeout, truncation, write denial), pipeline 6 (fail-closed behaviour), store 7, API 8.
+
+## 8. Not done yet (be upfront)
+
+| Area | Current state | Step |
+|---|---|---|
+| SQL generation | Templates, not an LLM; unseen phrasing returns a clean error | 7 |
+| Schema Linker | Keyword-based; no ambiguity detection (total_amount vs payments.amount) | 5 |
+| Classifier | Substring matching; "updated orders" is wrongly blocked | 5 |
+| Example retrieval | First 3 examples, no similarity search; only 10 unique examples | 6 |
+| Admin writes | No add/edit/delete examples or guardrail toggles via API | 8 |
+| Frontend | Chat page works; 5 admin panels only dump JSON | 9 |
+| Evaluation | Old harness numbers are not reliable; held-out evaluation needed | 10 |
+| Auth, CORS, Docker, CI | Not done | 8, 11 |
+
+Do not demo the admin panels or quote the old "74.8%" figure until Steps 9 and 10 are finished.
+
+## 9. Final demo plan
+1. Chat UI: ask the scenarios above live.
+2. Show the generated SQL, table, summary and ambiguity prompt.
+3. Admin panels: edit a column description, add an example, toggle a guardrail and show the effect on the next query.
+4. Guardrail demo with the adversarial set.
+5. Show the evaluation report with the per-query-type breakdown.
+6. Run `pytest` and show CI.
