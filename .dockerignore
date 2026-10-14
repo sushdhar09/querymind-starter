@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+*.egg-info
+.env
+*.db
+data/chroma
+eval/reports
+tests
+frontend

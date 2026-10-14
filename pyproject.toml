@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff>=0.15,<0.18"]
+dev = ["pytest", "pyyaml", "ruff>=0.15,<0.18"]
 
 [tool.setuptools]
 packages = ["backend", "backend.components", "eval"]

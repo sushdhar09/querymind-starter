@@ -1,6 +1,6 @@
 # QueryMind AI - Demo Script
 
-Status: through Step 10 of 11. Update the "Not done yet" table and re-run every scenario at the end.
+Status: through Step 11c of 11. Update the "Not done yet" table and re-run every scenario at the end.
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
@@ -140,6 +140,17 @@ What it measures:
 
 Committed baseline (mock provider): 25/25 on the original wording but only 6/25 (24%) on paraphrases. That gap is the point: the template generator memorised the test set, so only a real LLM run gives a trustworthy accuracy number. Guardrails: 89/89 and the database file hash is unchanged.
 
+## 4h. Run it with Docker (Step 11c)
+
+```powershell
+copy .env.example .env        # then set ADMIN_API_KEY to a real secret (and OPENAI_API_KEY if you want the LLM)
+docker compose up --build     # first build downloads the embedding model into the image (about 80 MB)
+```
+
+Open http://localhost:3000 (chat and admin) and http://localhost:8000/docs (API). `docker compose` refuses to start without `ADMIN_API_KEY`. The backend seeds the demo e-commerce database on first start; its data, app database and vector index live in the `querymind-data` volume and survive `docker compose down` (use `down -v` to wipe). To use your own database, mount it at `/var/lib/querymind/querymind.db` and set `SEED_ON_START=false`.
+
+`NEXT_PUBLIC_API_URL` is compiled into the frontend, so it must be the address the browser uses for the API; rebuild after changing it.
+
 ## 5. Safety demo (validator and executor)
 
 Run in a Python shell (`from backend.main import build_pipeline; v = build_pipeline().validator`):
@@ -178,7 +189,8 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 | Live LLM verification | OpenAI/Anthropic/Ollama code paths are tested with fakes only; a real key has not been exercised yet | 7 |
 | Frontend automation | Build and unit tests (17) cover the API client and data helpers; clicks, forms and chart rendering have been checked by hand only, with no browser test suite | 11 |
 | Evaluation with a real LLM | Harness is ready; only the mock baseline has been run (it memorised the test set, 24% on paraphrases). Run `--provider openai` once a key is available | 10 |
-| Docker, CI, structured logging | Not done | 11 |
+| Docker images | Dockerfiles and compose are written and their parts were exercised individually (entrypoint, container-style environment, standalone Next.js server, healthcheck commands), but `docker build` has never been run because Docker was not available | 11 |
+| CI | Workflow verified by running its steps locally; it has not run on GitHub yet | 11 |
 | Admin auth | Single shared API key; fine for a demo, replace with per-user login/SSO for production | - |
 
 Never quote the old "74.8%" figure; it came from a harness that substituted fallback SQL and assumed 40 points. Quote the committed report instead, with the mock caveat.

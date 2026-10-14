@@ -6,7 +6,9 @@ from datetime import date, timedelta
 from pathlib import Path
 
 BASE_DIR = Path(__file__).parent
-DB_PATH = BASE_DIR / "querymind.db"
+_env_db = os.environ.get("DB_PATH")
+DB_PATH = (Path(_env_db) if Path(_env_db).is_absolute() else BASE_DIR.parent / _env_db) if _env_db else BASE_DIR / "querymind.db"
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 SCHEMA_PATH = BASE_DIR / "schema.sql"
 if os.path.exists(DB_PATH): 
     os.remove(DB_PATH)

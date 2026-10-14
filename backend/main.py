@@ -17,6 +17,7 @@ from backend.config import (
     LOG_FORMAT,
     LOG_LEVEL,
     OPENAI_API_KEY,
+    admin_api_key,
 )
 from backend.factory import build_app
 from backend.observability import RequestContextMiddleware, configure_logging, request_id_var
@@ -43,6 +44,8 @@ from backend.store import AppStore
 configure_logging(LOG_FORMAT, LOG_LEVEL)
 log = logging.getLogger(__name__)
 query_log = logging.getLogger("querymind.query")
+if admin_api_key() == "change-me":
+    log.warning("ADMIN_API_KEY is still the placeholder 'change-me'; set a strong secret before exposing this service")
 
 store = AppStore(analytics_db=None, metadata_seed=DATA_DIR / "column_metadata.json",
                  examples_seed=DATA_DIR / "examples_seed.json").init()
