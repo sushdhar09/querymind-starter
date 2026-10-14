@@ -18,6 +18,8 @@ DB_PATH = _resolve("DB_PATH", "data/querymind.db")
 APP_DB_PATH = _resolve("APP_DB_PATH", "data/app.db")
 CHROMA_PATH = _resolve("CHROMA_PATH", "data/chroma")
 
+LOG_FORMAT = os.getenv("LOG_FORMAT", "text")  # text | json
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 EMBEDDING_MODE = os.getenv("EMBEDDING_MODE", "onnx")  # onnx | hash (hash is for tests/CI)
 QUERY_TIMEOUT_S = float(os.getenv("QUERY_TIMEOUT_S", "5"))
 ABSOLUTE_MAX_ROWS = int(os.getenv("ABSOLUTE_MAX_ROWS", "10000"))

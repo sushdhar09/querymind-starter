@@ -192,7 +192,7 @@ def test_logs_csv_export_is_formula_safe():
     rows = list(csv.DictReader(io.StringIO(r.text)))
     assert rows and rows[0]["nl_query"].startswith("'=HYPERLINK")
     assert list(rows[0]) == ["id", "created_at", "nl_query", "generated_sql", "status", "query_type", "failed_stage",
-                             "latency_ms", "row_count", "error", "model"]
+                             "latency_ms", "row_count", "error", "model", "request_id"]
 
 
 def test_stats():

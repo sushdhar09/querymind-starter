@@ -179,6 +179,7 @@ class LogIn(BaseModel):
     row_count: int = 0
     error: Optional[str] = None
     model: Optional[str] = None
+    request_id: Optional[str] = None
 
 
 class LogRecord(LogIn):

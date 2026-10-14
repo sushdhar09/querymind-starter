@@ -47,6 +47,10 @@ MIGRATIONS = [
     CREATE INDEX idx_logs_status ON query_logs(status);
     CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
     """,
+    """
+    ALTER TABLE query_logs ADD COLUMN request_id TEXT;
+    CREATE INDEX idx_logs_request ON query_logs(request_id);
+    """,
 ]
 
 
@@ -211,10 +215,10 @@ class AppStore:
     def add_log(self, entry: LogIn) -> int:
         with self._conn() as c:
             cur = c.execute(
-                "INSERT INTO query_logs (nl_query, generated_sql, status, query_type, failed_stage, latency_ms, row_count, error, model) "
-                "VALUES (?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO query_logs (nl_query, generated_sql, status, query_type, failed_stage, latency_ms, row_count, error, model, request_id) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)",
                 (entry.nl_query, entry.generated_sql, entry.status, entry.query_type, entry.failed_stage,
-                 entry.latency_ms, entry.row_count, entry.error, entry.model))
+                 entry.latency_ms, entry.row_count, entry.error, entry.model, entry.request_id))
             return cur.lastrowid
 
     @staticmethod

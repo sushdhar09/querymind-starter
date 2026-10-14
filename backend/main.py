@@ -1,14 +1,18 @@
 import csv
 import io
 import logging
+import sqlite3
 from typing import Optional
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Response
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
-from backend.config import CORS_ORIGINS, DATA_DIR, DB_PATH, EMBEDDING_MODE, OPENAI_API_KEY, ANTHROPIC_API_KEY
+from backend.config import (
+    ANTHROPIC_API_KEY, CORS_ORIGINS, DATA_DIR, DB_PATH, EMBEDDING_MODE, LOG_FORMAT, LOG_LEVEL, OPENAI_API_KEY,
+)
 from backend.factory import build_app
+from backend.observability import RequestContextMiddleware, configure_logging, request_id_var
 from backend.pipeline import Pipeline
 from backend.schemas import (
     ColumnMeta, ColumnMetaIn, Example, ExampleIn, ExampleRecord, Guardrails, LogIn, LogRecord, LogStats, ModelConfig,
@@ -17,8 +21,9 @@ from backend.schemas import (
 from backend.security import query_rate_limit, require_admin
 from backend.store import AppStore
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+configure_logging(LOG_FORMAT, LOG_LEVEL)
 log = logging.getLogger(__name__)
+query_log = logging.getLogger("querymind.query")
 
 store = AppStore(analytics_db=None, metadata_seed=DATA_DIR / "column_metadata.json",
                  examples_seed=DATA_DIR / "examples_seed.json").init()
@@ -44,11 +49,16 @@ admin = APIRouter(prefix="/admin", dependencies=[Depends(require_admin)])
 @public.post("/query", response_model=PipelineResponse, dependencies=[Depends(query_rate_limit)])
 def query(request: QueryRequest, pipeline: Pipeline = Depends(get_pipeline)):
     response = pipeline.run(request)
+    provider = store.get_model_config().provider
+    query_log.info("query %s", response.status, extra={
+        "status": response.status, "query_type": response.query_type, "failed_stage": response.failed_stage,
+        "latency_ms": response.total_latency_ms, "row_count": response.execution.row_count, "provider": provider,
+        "self_healed": response.self_healed, "question_chars": len(request.nl_query)})
     try:
         store.add_log(LogIn(nl_query=request.nl_query, generated_sql=response.generated_sql, status=response.status,
                             query_type=response.query_type, failed_stage=response.failed_stage,
                             latency_ms=response.total_latency_ms, row_count=response.execution.row_count,
-                            error=response.error, model=store.get_model_config().provider))
+                            error=response.error, model=provider, request_id=request_id_var.get()))
     except Exception:
         log.exception("Failed to write query log")
     return response
@@ -121,7 +131,7 @@ def _csv_safe(value) -> str:
 @admin.get("/logs/export")
 def export_logs(status: Optional[str] = None, search: Optional[str] = None, limit: int = 10000):
     fields = ["id", "created_at", "nl_query", "generated_sql", "status", "query_type", "failed_stage", "latency_ms",
-              "row_count", "error", "model"]
+              "row_count", "error", "model", "request_id"]
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow(fields)
@@ -165,12 +175,42 @@ def set_config(cfg: ModelConfig):
 app = FastAPI(title="QueryMind AI", version="1.0.0")
 app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_credentials=False,
                    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"], allow_headers=["Content-Type", "X-API-Key", "Authorization"],
-                   expose_headers=["X-Total-Count"])
+                   expose_headers=["X-Total-Count", "X-Request-ID"])
+app.add_middleware(RequestContextMiddleware)
 for prefix in ("", "/api/v1"):
     app.include_router(public, prefix=prefix)
     app.include_router(admin, prefix=prefix)
 
 
+@app.exception_handler(Exception)
+async def unhandled_error(request: Request, exc: Exception):
+    rid = request.scope.get("state", {}).get("request_id", "-")
+    logging.getLogger("querymind.error").error("Unhandled error on %s %s", request.method, request.url.path,
+                                               exc_info=(type(exc), exc, exc.__traceback__), extra={"request_id": rid})
+    return JSONResponse({"detail": "Internal server error", "request_id": rid}, status_code=500, headers={"X-Request-ID": rid})
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok", "db_exists": DB_PATH.exists(), "llm_provider": store.get_model_config().provider}
+    return {"status": "ok"}
+
+
+@app.get("/ready")
+def ready():
+    checks = {}
+    try:
+        conn = sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True)
+        try:
+            checks["analytics_db"] = conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0] > 0
+        finally:
+            conn.close()
+    except sqlite3.Error:
+        checks["analytics_db"] = False
+    try:
+        checks["app_db"] = store.examples_version() >= 0
+    except sqlite3.Error:
+        checks["app_db"] = False
+    provider = store.get_model_config().provider
+    body = {"status": "ready" if all(checks.values()) else "not_ready", "checks": checks, "llm_provider": provider,
+            "llm_api_key_configured": provider_key_configured(provider)}
+    return JSONResponse(body, status_code=200 if all(checks.values()) else 503)
