@@ -36,7 +36,7 @@ jobs:
         run: python eval/evaluation_harness.py --embedding hash --out-dir "$RUNNER_TEMP/eval-reports"
       - name: Upload evaluation report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: evaluation-report
           path: ${{ runner.temp }}/eval-reports
