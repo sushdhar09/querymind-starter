@@ -1,6 +1,6 @@
 # QueryMind AI - Demo Script
 
-Status: through Step 5 of 11. Update the "Not done yet" table and re-run every scenario at the end.
+Status: through Step 6 of 11. Update the "Not done yet" table and re-run every scenario at the end.
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
@@ -62,6 +62,16 @@ Open http://localhost:8000/docs and use POST /api/v1/query.
 
 `schema_context` returned by the linker lists the relevant tables with column descriptions, synonyms and foreign keys, plus the join-path tables (e.g. customers + products pulls in orders and order_items). Step 7 feeds it to the LLM.
 
+## 4c. Example retrieval (Step 6)
+
+| Action | Expected result |
+|---|---|
+| Ask "How much did each payment method bring in?" and open `few_shot_examples` | top result is "How much money was collected by each payment method?" with a similarity score |
+| Ask "which clients live in Delhi" | top result is "List all customers from Delhi" (semantic match: clients = customers) |
+| Add/edit/delete an example (store API now, admin UI in Step 9) and ask again | the vector index re-syncs on the next query; only changed examples are re-embedded |
+
+42 curated examples (8 simple, 14 aggregate, 8 join, 12 temporal), all verified to validate and return rows on the real data. None overlaps with the 25 held-out evaluation questions, enforced by a test. Embeddings come from ChromaDB's MiniLM model (ONNX, runs locally, no API key). If the model is unavailable the retriever falls back to keyword ranking.
+
 ## 5. Safety demo (validator and executor)
 
 Run in a Python shell (`from backend.main import build_pipeline; v = build_pipeline().validator`):
@@ -98,7 +108,6 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 | Area | Current state | Step |
 |---|---|---|
 | SQL generation | Templates, not an LLM; unseen phrasing returns a clean error | 7 |
-| Example retrieval | First 3 examples, no similarity search; only 10 unique examples | 6 |
 | Admin writes | No add/edit/delete examples or guardrail toggles via API | 8 |
 | Frontend | Chat page works; 5 admin panels only dump JSON; no clarification prompt yet | 9 |
 | Evaluation | Old harness numbers are not reliable; held-out evaluation needed | 10 |

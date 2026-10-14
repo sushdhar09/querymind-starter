@@ -63,6 +63,7 @@ class LinkerOutput(BaseModel):
 class Example(BaseModel):
     question: str
     sql: str
+    score: Optional[float] = None
 
 
 class RetrieverOutput(BaseModel):

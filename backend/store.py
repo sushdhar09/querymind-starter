@@ -51,10 +51,12 @@ MIGRATIONS = [
 
 
 class AppStore:
-    def __init__(self, path: Path = APP_DB_PATH, analytics_db: Path = DB_PATH, metadata_seed: Optional[Path] = None):
+    def __init__(self, path: Path = APP_DB_PATH, analytics_db: Optional[Path] = DB_PATH, metadata_seed: Optional[Path] = None,
+                 examples_seed: Optional[Path] = None):
         self.path = Path(path)
-        self.analytics_db = Path(analytics_db)
+        self.analytics_db = Path(analytics_db) if analytics_db else None
         self.metadata_seed = Path(metadata_seed) if metadata_seed else None
+        self.examples_seed = Path(examples_seed) if examples_seed else None
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
@@ -78,8 +80,29 @@ class AppStore:
                 c.executescript(script)
                 c.execute(f"PRAGMA user_version = {i}")
         self._seed_column_metadata()
+        self._seed_examples()
         self._import_legacy()
         return self
+
+    def _seed_examples(self) -> None:
+        if not self.examples_seed or not self.examples_seed.exists() or self._get_setting("examples_seeded"):
+            return
+        for ex in json.loads(self.examples_seed.read_text(encoding="utf-8")):
+            with self._conn() as c:
+                exists = c.execute("SELECT 1 FROM examples WHERE question = ?", (ex["question"],)).fetchone()
+            if not exists:
+                self.create_example(ExampleIn(**ex))
+        self._set_setting("examples_seeded", {"done": True})
+
+    def examples_version(self) -> int:
+        with self._conn() as c:
+            r = c.execute("SELECT value FROM settings WHERE key = 'examples_version'").fetchone()
+        return int(r["value"]) if r else 0
+
+    @staticmethod
+    def _bump_examples_version(c: sqlite3.Connection) -> None:
+        c.execute("INSERT INTO settings VALUES ('examples_version', '1') ON CONFLICT(key) DO UPDATE SET "
+                  "value = CAST(CAST(value AS INTEGER) + 1 AS TEXT)")
 
     def _seed_column_metadata(self) -> None:
         if not self.metadata_seed or not self.metadata_seed.exists():
@@ -97,7 +120,7 @@ class AppStore:
         return {f"{r[0]}.{r[1]}".lower() for r in rows}
 
     def _import_legacy(self) -> None:
-        if not self.analytics_db.exists():
+        if not self.analytics_db or not self.analytics_db.exists():
             return
         with self._conn() as c:
             has_examples = c.execute("SELECT 1 FROM examples LIMIT 1").fetchone()
@@ -147,6 +170,7 @@ class AppStore:
     def create_example(self, ex: ExampleIn) -> ExampleRecord:
         with self._conn() as c:
             cur = c.execute("INSERT INTO examples (question, sql, query_type) VALUES (?,?,?)", (ex.question, ex.sql, ex.query_type))
+            self._bump_examples_version(c)
             return self._example(c.execute("SELECT * FROM examples WHERE id = ?", (cur.lastrowid,)).fetchone())
 
     def update_example(self, example_id: int, ex: ExampleIn) -> Optional[ExampleRecord]:
@@ -156,11 +180,15 @@ class AppStore:
                 (ex.question, ex.sql, ex.query_type, example_id))
             if not cur.rowcount:
                 return None
+            self._bump_examples_version(c)
             return self._example(c.execute("SELECT * FROM examples WHERE id = ?", (example_id,)).fetchone())
 
     def delete_example(self, example_id: int) -> bool:
         with self._conn() as c:
-            return c.execute("DELETE FROM examples WHERE id = ?", (example_id,)).rowcount > 0
+            deleted = c.execute("DELETE FROM examples WHERE id = ?", (example_id,)).rowcount > 0
+            if deleted:
+                self._bump_examples_version(c)
+            return deleted
 
     @staticmethod
     def _meta(r: sqlite3.Row) -> ColumnMeta:

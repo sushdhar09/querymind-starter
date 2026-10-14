@@ -1,0 +1,212 @@
+[
+  {
+    "question": "List all customers from Delhi",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT * FROM customers WHERE city = 'Delhi'"
+  },
+  {
+    "question": "Show products in the Apparel category",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT * FROM products WHERE category = 'Apparel'"
+  },
+  {
+    "question": "Which orders were cancelled?",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT * FROM orders WHERE status = 'cancelled'"
+  },
+  {
+    "question": "Show products that cost more than 400",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT name, price FROM products WHERE price > 400"
+  },
+  {
+    "question": "List failed payments",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT * FROM payments WHERE status = 'failed'"
+  },
+  {
+    "question": "Show reviews with a rating of 5",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT * FROM reviews WHERE rating = 5"
+  },
+  {
+    "question": "What cities do our customers live in?",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT DISTINCT city FROM customers ORDER BY city"
+  },
+  {
+    "question": "Show the 10 most expensive products",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT name, price FROM products ORDER BY price DESC LIMIT 10"
+  },
+  {
+    "question": "How many customers do we have in each city?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT city, COUNT(*) AS customer_count FROM customers GROUP BY city ORDER BY customer_count DESC"
+  },
+  {
+    "question": "What is the average product price per category?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT category, AVG(price) AS avg_price FROM products GROUP BY category"
+  },
+  {
+    "question": "How many products are in each category?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT category, COUNT(*) AS product_count FROM products GROUP BY category"
+  },
+  {
+    "question": "What is the total quantity sold per product?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT p.name, SUM(oi.quantity) AS total_quantity FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name ORDER BY total_quantity DESC"
+  },
+  {
+    "question": "What is the average review rating by product category?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT p.category, AVG(r.rating) AS avg_rating FROM products p JOIN reviews r ON p.product_id = r.product_id GROUP BY p.category"
+  },
+  {
+    "question": "How much money was collected by each payment method?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT payment_method, SUM(amount) AS collected FROM payments WHERE status = 'success' GROUP BY payment_method"
+  },
+  {
+    "question": "What is the total order value for each order status?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT status, SUM(total_amount) AS total_value FROM orders GROUP BY status"
+  },
+  {
+    "question": "Which city has the most orders?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT c.city, COUNT(o.order_id) AS order_count FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city ORDER BY order_count DESC LIMIT 1"
+  },
+  {
+    "question": "How many reviews have been written in total?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT COUNT(*) AS review_count FROM reviews"
+  },
+  {
+    "question": "What are the highest and lowest order amounts?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT MAX(total_amount) AS highest, MIN(total_amount) AS lowest FROM orders"
+  },
+  {
+    "question": "Top 5 products by units sold",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT p.name, SUM(oi.quantity) AS units_sold FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name ORDER BY units_sold DESC LIMIT 5"
+  },
+  {
+    "question": "How many orders has each customer placed?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT c.name, COUNT(o.order_id) AS order_count FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.customer_id, c.name ORDER BY order_count DESC"
+  },
+  {
+    "question": "Which products have an average rating above 4?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT p.name, AVG(r.rating) AS avg_rating FROM products p JOIN reviews r ON p.product_id = r.product_id GROUP BY p.name HAVING AVG(r.rating) > 4"
+  },
+  {
+    "question": "What is the average discount per product category?",
+    "query_type": "SELECT_AGGREGATE",
+    "sql": "SELECT p.category, AVG(oi.discount) AS avg_discount FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category"
+  },
+  {
+    "question": "List order ids with the customer's name and city",
+    "query_type": "SELECT_JOIN",
+    "sql": "SELECT o.order_id, c.name, c.city FROM orders o JOIN customers c ON o.customer_id = c.customer_id"
+  },
+  {
+    "question": "Show product names with their review ratings",
+    "query_type": "SELECT_JOIN",
+    "sql": "SELECT p.name, r.rating FROM products p JOIN reviews r ON p.product_id = r.product_id"
+  },
+  {
+    "question": "Which customers have never placed an order?",
+    "query_type": "SELECT_JOIN",
+    "sql": "SELECT c.name FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_id IS NULL"
+  },
+  {
+    "question": "Show the payment method and amount for each order along with the customer name",
+    "query_type": "SELECT_JOIN",
+    "sql": "SELECT o.order_id, c.name, p.payment_method, p.amount FROM orders o JOIN customers c ON o.customer_id = c.customer_id JOIN payments p ON o.order_id = p.order_id"
+  },
+  {
+    "question": "List customers who have written a review",
+    "query_type": "SELECT_JOIN",
+    "sql": "SELECT DISTINCT c.name FROM customers c JOIN reviews r ON c.customer_id = r.customer_id"
+  },
+  {
+    "question": "Which customers have never written a review?",
+    "query_type": "SELECT_JOIN",
+    "sql": "SELECT c.name FROM customers c LEFT JOIN reviews r ON c.customer_id = r.customer_id WHERE r.review_id IS NULL"
+  },
+  {
+    "question": "Show the products and quantities in order 100",
+    "query_type": "SELECT_JOIN",
+    "sql": "SELECT p.name, oi.quantity FROM order_items oi JOIN products p ON oi.product_id = p.product_id WHERE oi.order_id = 100"
+  },
+  {
+    "question": "Which customers paid by credit card?",
+    "query_type": "SELECT_JOIN",
+    "sql": "SELECT DISTINCT c.name FROM customers c JOIN orders o ON c.customer_id = o.customer_id JOIN payments p ON o.order_id = p.order_id WHERE p.payment_method = 'credit_card'"
+  },
+  {
+    "question": "Orders placed in the last 7 days",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT * FROM orders WHERE order_date >= date('now', '-7 days')"
+  },
+  {
+    "question": "How many orders were placed each month?",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT strftime('%Y-%m', order_date) AS month, COUNT(*) AS order_count FROM orders GROUP BY month ORDER BY month"
+  },
+  {
+    "question": "Customers who signed up in the last 6 months",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT * FROM customers WHERE signup_date >= date('now', '-6 months')"
+  },
+  {
+    "question": "What is the total order value for the last 90 days?",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT SUM(total_amount) AS total_value FROM orders WHERE order_date >= date('now', '-90 days')"
+  },
+  {
+    "question": "Which orders shipped more than 5 days after they were placed?",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT order_id, order_date, shipping_date FROM orders WHERE shipping_date IS NOT NULL AND julianday(shipping_date) - julianday(order_date) > 5"
+  },
+  {
+    "question": "What is the average number of days between ordering and shipping?",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT AVG(julianday(shipping_date) - julianday(order_date)) AS avg_days FROM orders WHERE shipping_date IS NOT NULL"
+  },
+  {
+    "question": "How much was collected in payments this year?",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT SUM(amount) AS collected FROM payments WHERE status = 'success' AND strftime('%Y', payment_date) = strftime('%Y', 'now')"
+  },
+  {
+    "question": "Reviews written in the last 30 days",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT * FROM reviews WHERE review_date >= date('now', '-30 days')"
+  },
+  {
+    "question": "How many new customers signed up each year?",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT strftime('%Y', signup_date) AS year, COUNT(*) AS new_customers FROM customers GROUP BY year ORDER BY year"
+  },
+  {
+    "question": "Monthly order value for completed orders over the past year",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT strftime('%Y-%m', order_date) AS month, SUM(total_amount) AS order_value FROM orders WHERE status = 'completed' AND order_date >= date('now', '-1 year') GROUP BY month ORDER BY month"
+  },
+  {
+    "question": "Products added to the catalog in the last year",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT name, category, created_at FROM products WHERE created_at >= date('now', '-1 year')"
+  },
+  {
+    "question": "How many orders were placed on each day of the week?",
+    "query_type": "SELECT_TEMPORAL",
+    "sql": "SELECT strftime('%w', order_date) AS weekday, COUNT(*) AS order_count FROM orders GROUP BY weekday ORDER BY weekday"
+  }
+]
