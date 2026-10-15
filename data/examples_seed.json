@@ -37,7 +37,7 @@
   {
     "question": "Show the 10 most expensive products",
     "query_type": "SELECT_SIMPLE",
-    "sql": "SELECT name, price FROM products ORDER BY price DESC LIMIT 10"
+    "sql": "SELECT TOP 10 name, price FROM products ORDER BY price DESC"
   },
   {
     "question": "How many customers do we have in each city?",
@@ -62,7 +62,7 @@
   {
     "question": "What is the average review rating by product category?",
     "query_type": "SELECT_AGGREGATE",
-    "sql": "SELECT p.category, AVG(r.rating) AS avg_rating FROM products p JOIN reviews r ON p.product_id = r.product_id GROUP BY p.category"
+    "sql": "SELECT p.category, AVG(CAST(r.rating AS FLOAT)) AS avg_rating FROM products p JOIN reviews r ON p.product_id = r.product_id GROUP BY p.category"
   },
   {
     "question": "How much money was collected by each payment method?",
@@ -77,7 +77,7 @@
   {
     "question": "Which city has the most orders?",
     "query_type": "SELECT_AGGREGATE",
-    "sql": "SELECT c.city, COUNT(o.order_id) AS order_count FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city ORDER BY order_count DESC LIMIT 1"
+    "sql": "SELECT TOP 1 c.city, COUNT(o.order_id) AS order_count FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city ORDER BY order_count DESC"
   },
   {
     "question": "How many reviews have been written in total?",
@@ -92,7 +92,7 @@
   {
     "question": "Top 5 products by units sold",
     "query_type": "SELECT_AGGREGATE",
-    "sql": "SELECT p.name, SUM(oi.quantity) AS units_sold FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name ORDER BY units_sold DESC LIMIT 5"
+    "sql": "SELECT TOP 5 p.name, SUM(oi.quantity) AS units_sold FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name ORDER BY units_sold DESC"
   },
   {
     "question": "How many orders has each customer placed?",
@@ -102,7 +102,7 @@
   {
     "question": "Which products have an average rating above 4?",
     "query_type": "SELECT_AGGREGATE",
-    "sql": "SELECT p.name, AVG(r.rating) AS avg_rating FROM products p JOIN reviews r ON p.product_id = r.product_id GROUP BY p.name HAVING AVG(r.rating) > 4"
+    "sql": "SELECT p.name, AVG(CAST(r.rating AS FLOAT)) AS avg_rating FROM products p JOIN reviews r ON p.product_id = r.product_id GROUP BY p.name HAVING AVG(CAST(r.rating AS FLOAT)) > 4"
   },
   {
     "question": "What is the average discount per product category?",
@@ -152,61 +152,61 @@
   {
     "question": "Orders placed in the last 7 days",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT * FROM orders WHERE order_date >= date('now', '-7 days')"
+    "sql": "SELECT * FROM orders WHERE order_date >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))"
   },
   {
     "question": "How many orders were placed each month?",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT strftime('%Y-%m', order_date) AS month, COUNT(*) AS order_count FROM orders GROUP BY month ORDER BY month"
+    "sql": "SELECT FORMAT(order_date, 'yyyy-MM') AS month, COUNT(*) AS order_count FROM orders GROUP BY FORMAT(order_date, 'yyyy-MM') ORDER BY month"
   },
   {
     "question": "Customers who signed up in the last 6 months",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT * FROM customers WHERE signup_date >= date('now', '-6 months')"
+    "sql": "SELECT * FROM customers WHERE signup_date >= DATEADD(MONTH, -6, CAST(GETDATE() AS DATE))"
   },
   {
     "question": "What is the total order value for the last 90 days?",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT SUM(total_amount) AS total_value FROM orders WHERE order_date >= date('now', '-90 days')"
+    "sql": "SELECT SUM(total_amount) AS total_value FROM orders WHERE order_date >= DATEADD(DAY, -90, CAST(GETDATE() AS DATE))"
   },
   {
     "question": "Which orders shipped more than 5 days after they were placed?",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT order_id, order_date, shipping_date FROM orders WHERE shipping_date IS NOT NULL AND julianday(shipping_date) - julianday(order_date) > 5"
+    "sql": "SELECT order_id, order_date, shipping_date FROM orders WHERE shipping_date IS NOT NULL AND DATEDIFF(day, order_date, shipping_date) > 5"
   },
   {
     "question": "What is the average number of days between ordering and shipping?",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT AVG(julianday(shipping_date) - julianday(order_date)) AS avg_days FROM orders WHERE shipping_date IS NOT NULL"
+    "sql": "SELECT AVG(CAST(DATEDIFF(day, order_date, shipping_date) AS FLOAT)) AS avg_days FROM orders WHERE shipping_date IS NOT NULL"
   },
   {
     "question": "How much was collected in payments this year?",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT SUM(amount) AS collected FROM payments WHERE status = 'success' AND strftime('%Y', payment_date) = strftime('%Y', 'now')"
+    "sql": "SELECT SUM(amount) AS collected FROM payments WHERE status = 'success' AND YEAR(payment_date) = YEAR(GETDATE())"
   },
   {
     "question": "Reviews written in the last 30 days",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT * FROM reviews WHERE review_date >= date('now', '-30 days')"
+    "sql": "SELECT * FROM reviews WHERE review_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))"
   },
   {
     "question": "How many new customers signed up each year?",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT strftime('%Y', signup_date) AS year, COUNT(*) AS new_customers FROM customers GROUP BY year ORDER BY year"
+    "sql": "SELECT YEAR(signup_date) AS signup_year, COUNT(*) AS new_customers FROM customers GROUP BY YEAR(signup_date) ORDER BY signup_year"
   },
   {
     "question": "Monthly order value for completed orders over the past year",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT strftime('%Y-%m', order_date) AS month, SUM(total_amount) AS order_value FROM orders WHERE status = 'completed' AND order_date >= date('now', '-1 year') GROUP BY month ORDER BY month"
+    "sql": "SELECT FORMAT(order_date, 'yyyy-MM') AS month, SUM(total_amount) AS order_value FROM orders WHERE status = 'completed' AND order_date >= DATEADD(YEAR, -1, CAST(GETDATE() AS DATE)) GROUP BY FORMAT(order_date, 'yyyy-MM') ORDER BY month"
   },
   {
     "question": "Products added to the catalog in the last year",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT name, category, created_at FROM products WHERE created_at >= date('now', '-1 year')"
+    "sql": "SELECT name, category, created_at FROM products WHERE created_at >= DATEADD(YEAR, -1, CAST(GETDATE() AS DATE))"
   },
   {
-    "question": "How many orders were placed on each day of the week?",
+    "question": "How many orders were placed in each calendar month, regardless of year?",
     "query_type": "SELECT_TEMPORAL",
-    "sql": "SELECT strftime('%w', order_date) AS weekday, COUNT(*) AS order_count FROM orders GROUP BY weekday ORDER BY weekday"
+    "sql": "SELECT MONTH(order_date) AS month_number, COUNT(*) AS order_count FROM orders GROUP BY MONTH(order_date) ORDER BY month_number"
   }
 ]

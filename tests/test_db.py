@@ -68,6 +68,12 @@ def test_query_returns_normalised_rows_and_truncation():
     assert result.rows == [[1, 10.5, "2026-01-02"], [2, 3, "2026-01-03"]]
 
 
+def test_unnamed_columns_get_a_name_because_sql_server_returns_an_empty_one():
+    conn = StubConn(lambda sql: (["", "total", ""], [(1, 2, 3)]))
+    result = db_with(conn).query("SELECT COUNT(*), 2 AS total, 3", 5, 5)
+    assert result.columns == ["column_1", "total", "column_3"] and result.rows == [[1, 2, 3]]
+
+
 def test_query_not_truncated_when_rows_fit():
     assert not db_with(StubConn(lambda sql: (["x"], [(1,), (2,)]))).query("SELECT 1", 2, 5).truncated
 

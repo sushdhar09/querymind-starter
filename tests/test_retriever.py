@@ -6,10 +6,10 @@ import pytest
 from backend.components.example_retriever import ExampleRetriever
 from backend.components.sql_executor import SqlExecutor
 from backend.components.sql_validator import SqlValidator
-from backend.config import DB_PATH
 from backend.embeddings import HashEmbedding
 from backend.schemas import ExampleIn
 from backend.store import AppStore
+from backend.testing.inmemory_db import InMemoryDatabase
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED = ROOT / "data" / "examples_seed.json"
@@ -52,7 +52,7 @@ def test_different_questions_retrieve_different_examples(retriever):
 
 def test_query_type_filter(retriever):
     results = retriever.search("orders per month", top_k=5, query_type="SELECT_TEMPORAL")
-    assert results and all("strftime" in r.sql or "date(" in r.sql.lower() or "julianday" in r.sql for r in results)
+    assert results and all(any(k in r.sql.upper() for k in ("DATEADD", "FORMAT(", "YEAR(", "MONTH(", "DATEDIFF", "GETDATE")) for r in results)
 
 
 def test_sync_reflects_create_update_delete_immediately(store, retriever):
@@ -131,7 +131,7 @@ def test_example_library_quality():
 def test_example_library_does_not_leak_test_set():
     import sqlglot
     def norm(s):
-        return sqlglot.parse_one(s, read="sqlite").sql(dialect="sqlite")
+        return sqlglot.parse_one(s, read="tsql").sql(dialect="tsql")
 
     tests = json.loads((ROOT / "eval" / "test_queries.json").read_text())
     gt_sql = {norm(t["ground_truth_sql"]) for t in tests}
@@ -140,9 +140,10 @@ def test_example_library_does_not_leak_test_set():
         assert e["question"].lower() not in gt_q and norm(e["sql"]) not in gt_sql, e["question"]
 
 
-@pytest.mark.skipif(not DB_PATH.exists(), reason="run data/seed_db.py first")
 def test_every_example_validates_and_returns_rows():
-    v, ex = SqlValidator(), SqlExecutor()
+    db = InMemoryDatabase()
+    v = SqlValidator(schema={t: {c.name for c in cols} for t, cols in db.load_schema().tables.items()})
+    ex = SqlExecutor(db)
     for e in json.loads(SEED.read_text()):
         out = v.validate(e["sql"])
         assert out.valid, (e["question"], out.errors)
@@ -156,3 +157,12 @@ def test_real_embedding_model_handles_paraphrases(store, tmp_path):
     assert r.retrieve("which clients live in Delhi", 1).examples[0].question == "List all customers from Delhi"
     top = [e.question for e in r.retrieve("how much did each payment method bring in", 3).examples]
     assert "How much money was collected by each payment method?" in top
+
+
+def test_examples_are_native_tsql_and_follow_the_prompt_rules():
+    import sqlglot
+    for e in json.loads(SEED.read_text()):
+        sql = e["sql"]
+        assert not sqlglot.tokenize(sql, read="tsql") or "LIMIT" not in sql.upper().split(), e["question"]
+        assert "strftime" not in sql.lower() and "date('now'" not in sql.lower() and "julianday" not in sql.lower(), e["question"]
+        assert "AVG(" not in sql or "AVG(CAST(" in sql or not any(c in sql for c in ("rating", "quantity")), e["question"]

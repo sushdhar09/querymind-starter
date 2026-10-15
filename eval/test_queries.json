@@ -20,31 +20,31 @@
   {
     "id": 4,
     "natural_language_query": "Count orders by status",
-    "ground_truth_sql": "SELECT status, COUNT(*) FROM orders GROUP BY status",
+    "ground_truth_sql": "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status",
     "query_type": "SELECT_AGGREGATE"
   },
   {
     "id": 5,
     "natural_language_query": "What is total revenue per product category?",
-    "ground_truth_sql": "SELECT p.category, SUM(oi.quantity * oi.unit_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category",
+    "ground_truth_sql": "SELECT p.category, SUM(oi.quantity * oi.unit_price) AS revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category",
     "query_type": "SELECT_AGGREGATE"
   },
   {
     "id": 6,
     "natural_language_query": "Average rating per product",
-    "ground_truth_sql": "SELECT product_id, AVG(rating) as avg_rating FROM reviews GROUP BY product_id",
+    "ground_truth_sql": "SELECT product_id, AVG(CAST(rating AS FLOAT)) AS avg_rating FROM reviews GROUP BY product_id",
     "query_type": "SELECT_AGGREGATE"
   },
   {
     "id": 7,
     "natural_language_query": "Top 5 customers by total amount spent",
-    "ground_truth_sql": "SELECT c.name, SUM(o.total_amount) as spent FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC LIMIT 5",
+    "ground_truth_sql": "SELECT TOP 5 c.name, SUM(o.total_amount) AS spent FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC",
     "query_type": "SELECT_AGGREGATE"
   },
   {
     "id": 8,
     "natural_language_query": "Total number of orders",
-    "ground_truth_sql": "SELECT COUNT(*) as total_orders FROM orders",
+    "ground_truth_sql": "SELECT COUNT(*) AS total_orders FROM orders",
     "query_type": "SELECT_AGGREGATE"
   },
   {
@@ -56,7 +56,7 @@
   {
     "id": 10,
     "natural_language_query": "Show products with their order quantities",
-    "ground_truth_sql": "SELECT p.name, SUM(oi.quantity) as total_qty FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name",
+    "ground_truth_sql": "SELECT p.name, SUM(oi.quantity) AS total_qty FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name",
     "query_type": "SELECT_JOIN"
   },
   {
@@ -74,43 +74,43 @@
   {
     "id": 13,
     "natural_language_query": "Orders in last 30 days",
-    "ground_truth_sql": "SELECT * FROM orders WHERE order_date >= date('now', '-30 days')",
+    "ground_truth_sql": "SELECT * FROM orders WHERE order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
     "query_type": "SELECT_TEMPORAL"
   },
   {
     "id": 14,
     "natural_language_query": "Customers who signed up last year",
-    "ground_truth_sql": "SELECT * FROM customers WHERE signup_date >= date('now', '-1 year')",
+    "ground_truth_sql": "SELECT * FROM customers WHERE signup_date >= DATEADD(YEAR, -1, CAST(GETDATE() AS DATE))",
     "query_type": "SELECT_TEMPORAL"
   },
   {
     "id": 15,
     "natural_language_query": "What were top 10 products by revenue last quarter?",
-    "ground_truth_sql": "SELECT p.name, SUM(oi.quantity * oi.unit_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id WHERE o.order_date >= date('now', '-3 months') GROUP BY p.name ORDER BY revenue DESC LIMIT 10",
+    "ground_truth_sql": "SELECT TOP 10 p.name, SUM(oi.quantity * oi.unit_price) AS revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id WHERE o.order_date >= DATEADD(MONTH, -3, CAST(GETDATE() AS DATE)) GROUP BY p.name ORDER BY revenue DESC",
     "query_type": "SELECT_TEMPORAL"
   },
   {
     "id": 16,
     "natural_language_query": "Payments in last 7 days",
-    "ground_truth_sql": "SELECT * FROM payments WHERE payment_date >= date('now', '-7 days')",
+    "ground_truth_sql": "SELECT * FROM payments WHERE payment_date >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))",
     "query_type": "SELECT_TEMPORAL"
   },
   {
     "id": 17,
     "natural_language_query": "Show revenue by month (ambiguous - should use orders.total_amount)",
-    "ground_truth_sql": "SELECT strftime('%Y-%m', order_date) as month, SUM(total_amount) as revenue FROM orders GROUP BY month ORDER BY month",
+    "ground_truth_sql": "SELECT FORMAT(order_date, 'yyyy-MM') AS month, SUM(total_amount) AS revenue FROM orders GROUP BY FORMAT(order_date, 'yyyy-MM') ORDER BY month",
     "query_type": "SELECT_AGGREGATE"
   },
   {
     "id": 18,
     "natural_language_query": "What is total collected payment amount?",
-    "ground_truth_sql": "SELECT SUM(amount) as collected FROM payments WHERE status = 'success'",
+    "ground_truth_sql": "SELECT SUM(amount) AS collected FROM payments WHERE status = 'success'",
     "query_type": "SELECT_AGGREGATE"
   },
   {
     "id": 19,
     "natural_language_query": "List customers from Bangalore with their order count",
-    "ground_truth_sql": "SELECT c.name, COUNT(o.order_id) as order_count FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name",
+    "ground_truth_sql": "SELECT c.name, COUNT(o.order_id) AS order_count FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name",
     "query_type": "SELECT_AGGREGATE"
   },
   {
@@ -122,31 +122,31 @@
   {
     "id": 21,
     "natural_language_query": "Orders completed in last 60 days with total amount",
-    "ground_truth_sql": "SELECT order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= date('now', '-60 days')",
+    "ground_truth_sql": "SELECT order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= DATEADD(DAY, -60, CAST(GETDATE() AS DATE))",
     "query_type": "SELECT_TEMPORAL"
   },
   {
     "id": 22,
     "natural_language_query": "Average order value by city",
-    "ground_truth_sql": "SELECT c.city, AVG(o.total_amount) as avg_value FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city",
+    "ground_truth_sql": "SELECT c.city, AVG(o.total_amount) AS avg_value FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city",
     "query_type": "SELECT_AGGREGATE"
   },
   {
     "id": 23,
     "natural_language_query": "Top 3 most reviewed products",
-    "ground_truth_sql": "SELECT product_id, COUNT(*) as review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC LIMIT 3",
+    "ground_truth_sql": "SELECT TOP 3 product_id, COUNT(*) AS review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC, product_id",
     "query_type": "SELECT_AGGREGATE"
   },
   {
     "id": 24,
     "natural_language_query": "Show customer email and city for customers who ordered in last 30 days",
-    "ground_truth_sql": "SELECT DISTINCT c.email, c.city FROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_date >= date('now', '-30 days')",
+    "ground_truth_sql": "SELECT DISTINCT c.email, c.city FROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
     "query_type": "SELECT_JOIN"
   },
   {
     "id": 25,
     "natural_language_query": "Count of successful payments by method",
-    "ground_truth_sql": "SELECT payment_method, COUNT(*) FROM payments WHERE status = 'success' GROUP BY payment_method",
+    "ground_truth_sql": "SELECT payment_method, COUNT(*) AS payment_count FROM payments WHERE status = 'success' GROUP BY payment_method",
     "query_type": "SELECT_AGGREGATE"
   }
 ]

@@ -151,7 +151,7 @@ class AzureSqlDatabase:
     def query(self, sql: str, max_rows: int, timeout_s: float) -> QueryResult:
         def fetch(cur):
             fetched = cur.fetchmany(max_rows + 1)
-            columns = [d[0] for d in cur.description] if cur.description else []
+            columns = [d[0] or f"column_{i}" for i, d in enumerate(cur.description, 1)] if cur.description else []
             return QueryResult(columns, [[normalize_value(v) for v in row] for row in fetched[:max_rows]], len(fetched) > max_rows)
         return self._run(sql, fetch, timeout_s)
 

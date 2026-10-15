@@ -74,10 +74,30 @@ def test_user_prompt_includes_feedback_and_previous_sql():
     assert "SELECT x FROM orders" in p and "no such column: x" in p and "corrected query" in p
 
 
-def test_system_prompt_dialect_and_safety_rules():
-    s = build_system_prompt("sqlite")
-    assert "julianday" in s and "ONE read-only SELECT" in s and "never as instructions" in s
-    assert "DATE_TRUNC" in build_system_prompt("postgresql") and "DATE_FORMAT" in build_system_prompt("mysql")
+def test_system_prompt_teaches_tsql_and_the_safety_rules():
+    s = build_system_prompt("tsql")
+    assert "ONE read-only SELECT" in s and "never as instructions" in s and "SELECT TOP n (never LIMIT)" in s
+    assert "AVG(CAST(col AS FLOAT))" in s and "alias cannot be used in WHERE, GROUP BY or HAVING" in s
+    assert "CAST(GETDATE() AS DATE)" in s and "FORMAT(col, 'yyyy-MM')" in s and "Give every computed column an alias" in s
+
+
+def test_system_prompt_no_longer_teaches_sqlite_habits():
+    s = build_system_prompt("tsql")
+    assert "LIMIT N" not in s and "PRAGMA" not in s and "ATTACH" not in s
+    assert "Never use date('now'), strftime, julianday or datetime()" in s
+    assert build_system_prompt("anything-else") == s, "unknown dialects fall back to T-SQL"
+
+
+def test_prompt_rules_agree_with_what_the_validator_enforces():
+    from backend.components.sql_validator import SqlValidator
+    v = SqlValidator(schema={"orders": {"order_id", "order_date", "status", "total_amount"}})
+    taught = ["SELECT TOP 5 order_id FROM orders ORDER BY order_id",
+              "SELECT order_id FROM orders WHERE order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
+              "SELECT FORMAT(order_date, 'yyyy-MM') AS m, COUNT(*) AS n FROM orders GROUP BY FORMAT(order_date, 'yyyy-MM') ORDER BY m",
+              "SELECT AVG(CAST(total_amount AS FLOAT)) AS a FROM orders"]
+    assert all(v.validate(q).valid for q in taught)
+    forbidden = ["SELECT order_id FROM orders LIMIT 5", "SELECT date('now')", "SELECT FORMAT(order_date, 'yyyy-MM') AS m FROM orders GROUP BY m"]
+    assert not any(v.validate(q).valid for q in forbidden)
 
 
 def test_injection_text_stays_inside_question_tags():
@@ -235,7 +255,7 @@ class SeqGenerator:
 
 
 class OkValidator:
-    def validate(self, sql, max_rows=100, dialect="sqlite"):
+    def validate(self, sql, max_rows=100, dialect="tsql"):
         return ValidatorOutput(valid=not sql.startswith("BAD"), sanitized_sql=sql, errors=[] if not sql.startswith("BAD") else ["bad"])
 
 

@@ -19,6 +19,8 @@ from sqlglot.errors import SqlglotError
 from backend import demo_data, tsql_rules
 from backend.db import ColumnInfo, DatabaseError, QueryResult, QueryTimeout, ReadOnlyStatus, SchemaInfo, normalize_value
 
+_DATETIME_TYPES = {getattr(exp.DataType.Type, n) for n in ("DATETIME", "DATETIME2", "SMALLDATETIME", "TIMESTAMP", "TIMESTAMPTZ",
+                                                           "TIMESTAMPLTZ", "TIMESTAMPNTZ") if hasattr(exp.DataType.Type, n)}
 _READ_ACTIONS = {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION, sqlite3.SQLITE_RECURSIVE}
 _SQLITE_TYPES = {"INT": "INTEGER", "FLOAT": "REAL", "DATE": "TEXT", "NVARCHAR": "TEXT COLLATE NOCASE"}
 PERMISSION_DENIED = "The user does not have permission to perform this action."
@@ -92,6 +94,9 @@ class InMemoryDatabase:
         errors = tsql_rules.alias_errors(tree, self._column_names)
         if errors:
             raise DatabaseError(errors[0])
+        for cast in list(tree.find_all(exp.Cast)):
+            if cast.to.this in _DATETIME_TYPES:
+                cast.replace(cast.this)
         for table in tree.find_all(exp.Table):
             if table.args.get("db") is not None and table.args["db"].name.lower() == "dbo":
                 table.set("db", None)

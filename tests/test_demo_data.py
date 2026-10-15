@@ -59,9 +59,7 @@ def test_every_column_in_the_rows_matches_the_schema_width():
 
 def test_tsql_ddl_parses_and_describes_every_table():
     statements = [s for s in sqlglot.parse(d.tsql_ddl(), read="tsql") if s is not None]
-    creates = [s for s in statements if isinstance(s, exp.Create)]
-    drops = [s for s in statements if isinstance(s, exp.Drop)]
-    assert len(creates) == len(drops) == len(d.SCHEMA)
+    assert len(statements) == len(d.SCHEMA) and all(isinstance(s, exp.Create) for s in statements)
     ddl = d.tsql_ddl()
     for table in d.SCHEMA:
         assert f"CREATE TABLE dbo.{table.name}" in ddl and f"CONSTRAINT pk_{table.name} PRIMARY KEY" in ddl
@@ -69,8 +67,14 @@ def test_tsql_ddl_parses_and_describes_every_table():
             if col.references:
                 assert f"FOREIGN KEY ({col.name}) REFERENCES dbo.{col.references.split('.')[0]}" in ddl
     assert "CHECK (rating BETWEEN 1 AND 5)" in ddl
-    dropped = [t.name for s in drops for t in s.find_all(exp.Table)]
+
+
+def test_the_schema_file_never_drops_anything_but_the_rebuild_statements_do_in_dependency_order():
+    assert "DROP" not in d.tsql_ddl().upper().replace("DOES NOT DROP", "").replace("NEVER DROPS", "")
+    statements = [s for s in sqlglot.parse(";".join(d.tsql_statements()), read="tsql") if s is not None]
+    dropped = [t.name for s in statements if isinstance(s, exp.Drop) for t in s.find_all(exp.Table)]
     assert dropped == list(reversed(d.TABLE_NAMES)), "drop children before parents"
+    assert not any(s.startswith("DROP") for s in d.tsql_statements(include_drops=False))
 
 
 def test_base_type():
