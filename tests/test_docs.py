@@ -50,7 +50,8 @@ def test_readme_does_not_carry_the_retired_claims():
 
 
 def test_readme_states_the_key_caveats():
-    for caveat in ["No real-LLM verification", "memorised the test set", "SQLite only", "Docker images have not been built"]:
+    for caveat in ["No real-LLM verification", "memorised the test set", "mid-migration", "Docker images have not been built",
+                   "Credentials were committed"]:
         assert caveat in README
 
 

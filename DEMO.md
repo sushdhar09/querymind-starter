@@ -1,6 +1,17 @@
 # QueryMind AI - Demo Script
 
-Status: all 11 steps complete. See README.md for setup, limitations and the assignment coverage table. Update the "Not done yet" table and re-run every scenario at the end.
+Status: all 11 build steps were completed, then the analytics database was moved to Azure SQL. That change is only partly integrated: see "0. Before you demo" and the README's "Current status". Re-run every scenario before presenting.
+
+## 0. Before you demo
+
+Decide which database you are showing, because the repository currently supports one of them properly.
+
+| Mode | How | What works | What does not |
+|---|---|---|---|
+| **Azure SQL** (the author's setup) | `.env` with `DB_TYPE=azuresql` and `AZURE_SQL_CONNECTION_STRING`; ODBC Driver 18 installed | Chat, linking, validation, admin console, logs, examples. The mock templates now emit T-SQL for this mode | Row counts and sample values depend on what is in your Azure database; the executor has no authorizer or query timeout, so rely on a read-only login; the evaluation harness cannot target it |
+| **SQLite** (how all earlier outputs below were recorded) | `DB_TYPE=sqlite` | Needs a SQLite database | `data/seed_db.py` fails because `data/schema.sql` is now T-SQL, so you can only demo with an old `data/querymind.db` you already have; even then the mock's temporal questions fail because its templates emit T-SQL |
+
+Also: rotate the Azure password that was committed earlier, and run `pytest -q` and `ruff check .` first so you know what is red (currently 5 failures, 30 errors and 12 lint findings, all from the Azure change).
 
 ## 1. What to say (30 seconds)
 A business user types a question in English. QueryMind turns it into SQL, checks the SQL is safe, runs it on a read-only database and returns a table. Safety is enforced in three independent layers, so a destructive statement cannot reach the data.
@@ -12,10 +23,10 @@ POST /api/v1/query { "nl_query": "...", "max_rows": 100 }
   1. Classifier    query type; blocks destructive intent      -> status "blocked"
   2. Schema Linker relevant tables
   3. Retriever     few-shot examples from app.db
-  4. Generator     SQL (template-based for now)
+  4. Generator     SQL (mock templates, or an LLM when a provider and key are configured)
   5. Validator     sqlglot safety + schema checks, adds LIMIT
                    invalid -> one retry with the error fed back, else "blocked"
-  6. Executor      read-only SQLite, timeout, row cap
+  6. Executor      SQLite: read-only, timeout, row cap.  Azure SQL: SQLite-to-T-SQL translation, row cap, read-only login
   7. Formatter     table + summary
   -> log row saved to app.db -> JSON response
 ```
@@ -25,26 +36,30 @@ POST /api/v1/query { "nl_query": "...", "max_rows": 100 }
 
 | DB | File | Access |
 |---|---|---|
-| Analytics (customers, orders, order_items, products, payments, reviews) | `data/querymind.db` | read-only, executor only |
+| Analytics (customers, orders, order_items, products, payments, reviews) | Azure SQL (`DB_TYPE=azuresql`) or `data/querymind.db` (SQLite) | read-only, executor only |
 | App data (examples, column metadata, logs, settings) | `data/app.db` | read/write, admin side |
 
 ## 3. Setup
 
 ```powershell
-.\.venv\Scripts\python.exe data/seed_db.py
-.\.venv\Scripts\python.exe -m uvicorn backend.main:app --port 8000
+pip install -e ".[dev]"                      # pyodbc is now a core dependency
+copy .env.example .env                       # set ADMIN_API_KEY, DB_TYPE and, for Azure, AZURE_SQL_CONNECTION_STRING
+# Azure SQL: create tables with data/seed_azure.py (run from inside data/) or copy data with data/migrate_sqlite_to_azure.py
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --port 8000     # or: python debug_run.py (no auto-reload)
 ```
 
-Open http://localhost:8000/docs and use POST /api/v1/query.
+`data/seed_db.py` (SQLite) currently fails against the T-SQL schema. Open http://localhost:8000/docs and use POST /api/v1/query.
 
-## 4. Live scenarios (outputs recorded 2026-10-13)
+## 4. Live scenarios (outputs recorded 2026-10-13 on SQLite, before the Azure change)
+
+With Azure SQL the same questions work, but row counts depend on your data and the SQL you see is the T-SQL form of the templates. With SQLite after the Azure change, the temporal question below fails because the mock now emits `DATEADD(...)`.
 
 | Question | Expected result |
 |---|---|
 | Count orders by status | success, 3 rows (cancelled 1670, ...), `LIMIT 100` added |
 | Top 5 customers by total amount spent | 3-table JOIN, first row Neha Gupta 48732.43 |
 | Total revenue per category | aggregate over order_items, 5 categories |
-| Orders in last 30 days | date arithmetic, `DATE('now','-30 days')` |
+| Orders in last 30 days | date arithmetic: `DATE('now','-30 days')` on SQLite (pre-change), `DATEADD(DAY, -30, GETDATE())` on Azure SQL |
 | Drop the customers table | status `blocked`, stage `classifier`, no SQL generated |
 | Show updated orders | allowed (word-aware classifier; only real destructive commands are blocked) |
 | what is the meaning of life | status `error`, stage `generator`, no fallback query |
@@ -138,7 +153,9 @@ What it measures:
 - A paraphrase set: the same 25 ground truths asked in different words.
 - Guardrails: 40 natural-language attacks, 49 attack SQL statements injected as if a model produced them, the same statements sent straight to the executor, 2 resource bombs, plus false-positive controls (12 benign questions, 67 legitimate SQL statements).
 
-Committed baseline (mock provider): 25/25 on the original wording but only 6/25 (24%) on paraphrases. That gap is the point: the template generator memorised the test set, so only a real LLM run gives a trustworthy accuracy number. Guardrails: 89/89 and the database file hash is unchanged.
+Committed baseline (mock provider, SQLite, recorded before the Azure change): 25/25 on the original wording but only 6/25 (24%) on paraphrases. That gap is the point: the template generator memorised the test set, so only a real LLM run gives a trustworthy accuracy number. Guardrails: 89/89 and the database file hash is unchanged.
+
+After the Azure change a fresh run on SQLite gives 17/25 (68%) on the original wording, because the mock templates now emit T-SQL; the paraphrase score (24%) and guardrails (89/89) are unchanged. The harness only supports SQLite, so it cannot evaluate Azure SQL. Quote the committed report with these caveats, not a new number.
 
 ## 4h. Run it with Docker (Step 11c)
 
@@ -147,7 +164,9 @@ copy .env.example .env        # then set ADMIN_API_KEY to a real secret (and OPE
 docker compose up --build     # first build downloads the embedding model into the image (about 80 MB)
 ```
 
-Open http://localhost:3000 (chat and admin) and http://localhost:8000/docs (API). `docker compose` refuses to start without `ADMIN_API_KEY`. The backend seeds the demo e-commerce database on first start; its data, app database and vector index live in the `querymind-data` volume and survive `docker compose down` (use `down -v` to wipe). To use your own database, mount it at `/var/lib/querymind/querymind.db` and set `SEED_ON_START=false`.
+Open http://localhost:3000 (chat and admin) and http://localhost:8000/docs (API). `docker compose` refuses to start without `ADMIN_API_KEY`. The app database and vector index live in the `querymind-data` volume and survive `docker compose down` (use `down -v` to wipe).
+
+Do not demo this path yet: the image has never been built, the ODBC-driver step was added after `USER app` (apt cannot run as that user), and the first-start SQLite seed fails on the T-SQL schema. With the Dockerfile fixed, run against Azure SQL with `DB_TYPE=azuresql`, the connection string in `.env`, and `SEED_ON_START=false`.
 
 `NEXT_PUBLIC_API_URL` is compiled into the frontend, so it must be the address the browser uses for the API; rebuild after changing it.
 
@@ -166,13 +185,13 @@ Run in a Python shell (`from backend.main import build_pipeline; v = build_pipel
 Defence in depth:
 1. Classifier blocks destructive intent in the question.
 2. Validator (sqlglot AST): single SELECT/UNION, no DML/DDL/PRAGMA/ATTACH or dangerous functions anywhere, known tables and columns only, internal tables blocked, LIMIT enforced.
-3. Executor: read-only connection, `query_only`, SQLite authorizer denying non-SELECT actions, 5 s timeout, row cap.
+3. Executor: SQLite mode has a read-only connection, `query_only`, an authorizer denying non-SELECT actions, a 5 s timeout and a row cap. Azure SQL mode has only the SELECT-or-WITH check, the row cap and the database login's permissions, so say plainly that a read-only login is part of the design there.
 
 ## 6. Admin data
 
-After running the scenarios, open `/api/v1/admin/logs`: every query is logged with status, latency and failed stage.
+After running the scenarios, open `/api/v1/admin/logs` (with the admin key): every query is logged with status, latency, failed stage and request ID.
 
-Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/guardrails`, `/admin/config`.
+The other admin routes (`/admin/schema`, `/admin/examples`, `/admin/guardrails`, `/admin/config`, `/admin/stats`, CSV export) read and write as described in section 4e.
 
 ## 7. Tests
 
@@ -180,7 +199,7 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-118 tests across validator, components (classifier, linker, executor), schema index, pipeline (fail-closed and clarification), store and API.
+Today: 264 passed, 5 failed, 30 errors, 1 skipped (the live OpenAI test). Before the Azure change all 299 passed. Every failure traces back to the T-SQL `schema.sql` being loaded into SQLite by the tests, or to a seeded SQLite database being required. Frontend: `cd frontend; npm test` runs 17 tests, all passing.
 
 ## 8. Not done yet (be upfront)
 
@@ -189,8 +208,11 @@ Also available (read-only for now): `/admin/schema`, `/admin/examples`, `/admin/
 | Live LLM verification | OpenAI/Anthropic/Ollama code paths are tested with fakes only; a real key has not been exercised yet | 7 |
 | Frontend automation | Build and unit tests (17) cover the API client and data helpers; clicks, forms and chart rendering have been checked by hand only, with no browser test suite | 11 |
 | Evaluation with a real LLM | Harness is ready; only the mock baseline has been run (it memorised the test set, 24% on paraphrases). Run `--provider openai` once a key is available | 10 |
-| Docker images | Dockerfiles and compose are written and their parts were exercised individually (entrypoint, container-style environment, standalone Next.js server, healthcheck commands), but `docker build` has never been run because Docker was not available | 11 |
-| CI | Workflow verified by running its steps locally; it has not run on GitHub yet | 11 |
+| Azure SQL integration | Executor, schema loader and templates were switched to Azure SQL without updating SQLite seeding, tests, lint, the evaluation harness or the Dockerfile (details in README "Current status") | Azure change |
+| Azure safety parity | Azure mode has no authorizer, `query_only` or query timeout; SQLite-to-T-SQL translation is regex based and only covers some constructs; the guardrail evidence was gathered on SQLite | Azure change |
+| Committed credentials | An Azure login was committed to `.env.example` and `test_azure.py` and pushed; `.env.example` now has placeholders but the history keeps the old value. Rotate the password | Azure change |
+| Docker images | Never built (Docker was not available). The ODBC install step runs after `USER app` and will fail; the SQLite first-start seed fails on the T-SQL schema | 11 |
+| CI | Verified by running its steps locally before the Azure change; now expected to fail (lint, seeding, `pyodbc` needing `unixodbc` on Linux); has not run on GitHub | 11 |
 | Admin auth | Single shared API key; fine for a demo, replace with per-user login/SSO for production | - |
 
 Never quote the old "74.8%" figure; it came from a harness that substituted fallback SQL and assumed 40 points. Quote the committed report instead, with the mock caveat.
@@ -201,4 +223,4 @@ Never quote the old "74.8%" figure; it came from a harness that substituted fall
 3. Admin panels: edit a column description, add an example, toggle a guardrail and show the effect on the next query.
 4. Guardrail demo with the adversarial set.
 5. Show the evaluation report with the per-query-type breakdown.
-6. Run `pytest` and show CI.
+6. Run `pytest` only after the Azure change has been reconciled; until then the honest line is "264 of 299 pass and the failures are the known migration fallout". Do not show CI until it is green.
