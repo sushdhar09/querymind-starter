@@ -9,9 +9,9 @@ services:
         required: false
     environment:
       # Pinned so a copied .env cannot move state off the persistent volume.
-      DB_PATH: /var/lib/querymind/querymind.db
       APP_DB_PATH: /var/lib/querymind/app.db
       CHROMA_PATH: /var/lib/querymind/chroma
+      ANALYTICS_BACKEND: ${ANALYTICS_BACKEND:-azure}
       ADMIN_API_KEY: ${ADMIN_API_KEY:?Set ADMIN_API_KEY in .env (copy .env.example)}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
       LOG_FORMAT: ${LOG_FORMAT:-json}

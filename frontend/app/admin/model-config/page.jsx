@@ -25,7 +25,7 @@ export default function ModelConfigPage() {
     setSaving(true)
     try {
       const { api_key_configured, ...body } = form
-      await apiClient.saveModelConfig({ ...body, temperature: Number(body.temperature), max_tokens: Number(body.max_tokens) })
+      await apiClient.saveModelConfig({ ...body, dialect: 'tsql', temperature: Number(body.temperature), max_tokens: Number(body.max_tokens) })
       showNotice('Model configuration saved. It applies to the next query.')
       reload()
     } catch (e) { showNotice(e.message, 'bad') }
@@ -53,11 +53,9 @@ export default function ModelConfigPage() {
           <Field label="Max tokens" hint="Token budget for each model response (64 to 32000).">
             <input type="number" min={64} max={32000} value={form.max_tokens} onChange={set('max_tokens')} style={{ width: 160 }} />
           </Field>
-          <Field label="SQL dialect">
-            <select value={form.dialect} onChange={set('dialect')} style={{ width: 200 }}>
-              <option value="sqlite">SQLite</option>
-              <option value="postgresql">PostgreSQL</option>
-              <option value="mysql">MySQL</option>
+          <Field label="SQL dialect" hint="QueryMind writes T-SQL for Azure SQL. Other dialects are not supported.">
+            <select value="tsql" disabled style={{ width: 200 }}>
+              <option value="tsql">T-SQL (Azure SQL)</option>
             </select>
           </Field>
           <label className="row" style={{ marginBottom: 12 }}>

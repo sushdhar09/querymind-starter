@@ -1,14 +1,20 @@
 #!/bin/sh
 set -eu
 
-if [ ! -f "$DB_PATH" ]; then
-    if [ "${SEED_ON_START:-true}" = "true" ]; then
-        echo "Analytics database not found at $DB_PATH; seeding the demo e-commerce dataset"
-        python data/seed_db.py
-    else
-        echo "Analytics database not found at $DB_PATH and SEED_ON_START is not true" >&2
+case "${ANALYTICS_BACKEND:-azure}" in
+    azure)
+        if [ -z "${AZURE_SQL_CONNECTION_STRING:-}" ]; then
+            echo "AZURE_SQL_CONNECTION_STRING is not set. Put the app's read-only connection string in .env, or set ANALYTICS_BACKEND=memory for an offline demo." >&2
+            exit 1
+        fi
+        ;;
+    memory)
+        echo "ANALYTICS_BACKEND=memory: using the in-memory test double, not Azure SQL." >&2
+        ;;
+    *)
+        echo "Unknown ANALYTICS_BACKEND '${ANALYTICS_BACKEND}' (expected azure or memory)." >&2
         exit 1
-    fi
-fi
+        ;;
+esac
 
 exec "$@"

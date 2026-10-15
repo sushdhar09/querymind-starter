@@ -13,7 +13,6 @@ def _resolve(env_name: str, default: str) -> Path:
 
 
 DATA_DIR = ROOT_DIR / "data"
-DB_PATH = _resolve("DB_PATH", "data/querymind.db")
 APP_DB_PATH = _resolve("APP_DB_PATH", "data/app.db")
 CHROMA_PATH = _resolve("CHROMA_PATH", "data/chroma")
 

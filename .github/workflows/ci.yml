@@ -26,8 +26,6 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Install
         run: pip install -e ".[dev]"
-      - name: Seed the analytics database
-        run: python data/seed_db.py
       - name: Lint
         run: ruff check .
       - name: Tests
@@ -41,6 +39,32 @@ jobs:
           name: evaluation-report
           path: ${{ runner.temp }}/eval-reports
           if-no-files-found: ignore
+
+  docker:
+    name: Docker images (build and smoke test)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the backend image
+        run: docker build -t querymind-backend .
+      - name: The ODBC driver is registered inside the image
+        run: docker run --rm --entrypoint python querymind-backend -c "import pyodbc; print(pyodbc.drivers()); assert 'ODBC Driver 18 for SQL Server' in pyodbc.drivers()"
+      - name: The entrypoint refuses to start without a connection string
+        run: |
+          if docker run --rm -e ADMIN_API_KEY=ci querymind-backend true; then echo "container started without AZURE_SQL_CONNECTION_STRING"; exit 1; fi
+      - name: Smoke test with the in-memory test double
+        run: |
+          docker run -d --name qm -e ADMIN_API_KEY=ci-key -e ANALYTICS_BACKEND=memory -p 8000:8000 querymind-backend
+          ready=0
+          for i in $(seq 1 40); do curl -fsS http://127.0.0.1:8000/ready >/dev/null && ready=1 && break; sleep 3; done
+          docker logs qm | tail -n 30
+          test "$ready" = 1
+          curl -fsS -X POST http://127.0.0.1:8000/query -H 'Content-Type: application/json' -d '{"nl_query": "Count orders by status"}' | python3 -c "import sys, json; r = json.load(sys.stdin); assert r['status'] == 'success', r"
+      - name: Build the frontend image
+        run: docker build -t querymind-frontend frontend
+      - name: The compose file is valid
+        run: ADMIN_API_KEY=ci docker compose config --quiet
 
   frontend:
     name: Frontend (tests, build)

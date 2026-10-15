@@ -15,16 +15,14 @@ dependencies = [
     "chromadb",
     "openai",
     "httpx",
-    "sqlalchemy>=2.0",
     "pyodbc>=5.0",
-    "python-dotenv"
 ]
 
 [project.optional-dependencies]
 dev = ["pytest", "pyyaml", "ruff>=0.15,<0.18"]
 
 [tool.setuptools]
-packages = ["backend", "backend.components", "eval"]
+packages = ["backend", "backend.components", "backend.testing", "eval"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
