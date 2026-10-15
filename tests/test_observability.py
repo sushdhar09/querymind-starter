@@ -6,12 +6,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 import backend.main as main
-from backend.config import DB_PATH
+from backend.db import DatabaseError, ReadOnlyStatus
 from backend.main import app, get_pipeline
 from backend.observability import JsonFormatter, RequestIdFilter, configure_logging, request_id_var, sanitize_request_id
 from backend.store import MIGRATIONS, AppStore
 
-pytestmark = pytest.mark.skipif(not DB_PATH.exists(), reason="run data/seed_db.py first")
 client = TestClient(app)
 admin = TestClient(app, headers={"X-API-Key": "test-admin-key"})
 
@@ -133,14 +132,50 @@ def test_health_is_cheap_and_ready_reports_checks():
     r = client.get("/ready")
     assert r.status_code == 200
     body = r.json()
-    assert body["status"] == "ready" and body["checks"] == {"analytics_db": True, "app_db": True}
+    assert body["status"] == "ready" and body["checks"] == {"analytics_db": True, "read_only_login": True, "app_db": True}
     assert body["llm_provider"] == "mock" and body["llm_api_key_configured"] is True
+    assert "read-only" in body["detail"]["read_only_login"]
 
 
-def test_ready_fails_when_analytics_db_missing(monkeypatch, tmp_path):
-    monkeypatch.setattr(main, "DB_PATH", tmp_path / "missing.db")
+class FakeDatabase:
+    dialect = "tsql"
+
+    def __init__(self, ping_error=None, read_only=True, detail="login can write: db_owner"):
+        self.ping_error, self.read_only, self.detail = ping_error, read_only, detail
+
+    def ping(self):
+        if self.ping_error:
+            raise DatabaseError(self.ping_error)
+
+    def read_only_status(self):
+        return ReadOnlyStatus(self.read_only, self.detail)
+
+
+def test_ready_fails_when_the_analytics_database_is_unreachable(monkeypatch):
+    monkeypatch.setattr(main, "database", FakeDatabase(ping_error="Could not connect to Azure SQL (08001)"))
     r = client.get("/ready")
-    assert r.status_code == 503 and r.json()["status"] == "not_ready" and r.json()["checks"]["analytics_db"] is False
+    body = r.json()
+    assert r.status_code == 503 and body["status"] == "not_ready" and body["checks"]["analytics_db"] is False
+    assert "read_only_login" not in body["checks"] and "08001" in body["detail"]["analytics_db"]
+    assert client.get("/health").status_code == 200, "liveness must not depend on the database"
+
+
+def test_ready_fails_when_the_login_can_write_unless_that_check_is_disabled(monkeypatch):
+    monkeypatch.setattr(main, "database", FakeDatabase(read_only=False))
+    r = client.get("/ready")
+    assert r.status_code == 503 and r.json()["checks"]["read_only_login"] is False and "db_owner" in r.json()["detail"]["read_only_login"]
+    monkeypatch.setattr(main, "REQUIRE_READ_ONLY_LOGIN", False)
+    assert client.get("/ready").status_code == 200
+
+
+def test_ready_reports_a_failing_privilege_probe(monkeypatch):
+    class Broken(FakeDatabase):
+        def read_only_status(self):
+            raise DatabaseError("permission denied on HAS_PERMS_BY_NAME")
+
+    monkeypatch.setattr(main, "database", Broken())
+    r = client.get("/ready")
+    assert r.status_code == 503 and r.json()["checks"]["read_only_login"] is False
 
 
 def test_migration_adds_request_id_and_keeps_existing_rows(tmp_path):
@@ -151,7 +186,7 @@ def test_migration_adds_request_id_and_keeps_existing_rows(tmp_path):
     conn.execute("INSERT INTO query_logs (nl_query, status) VALUES ('legacy question', 'success')")
     conn.commit()
     conn.close()
-    store = AppStore(path, None).init()
+    store = AppStore(path).init()
     with store._conn() as c:
         assert c.execute("PRAGMA user_version").fetchone()[0] == len(MIGRATIONS) >= 2
     [rec] = store.list_logs()

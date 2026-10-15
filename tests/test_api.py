@@ -1,10 +1,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.config import DB_PATH
 from backend.main import app
 
-pytestmark = pytest.mark.skipif(not DB_PATH.exists(), reason="run data/seed_db.py first")
 client = TestClient(app)
 admin = TestClient(app, headers={"X-API-Key": "test-admin-key"})
 

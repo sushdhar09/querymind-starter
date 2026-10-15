@@ -13,7 +13,7 @@ from backend.components.llm_generator import (
 )
 from backend.components.result_formatter import LlmSummarizer, ResultFormatter, default_summary
 from backend.components.sql_generator import GenerationError, SqlGenerator
-from backend.config import DB_PATH, OPENAI_API_KEY
+from backend.config import OPENAI_API_KEY
 from backend.llm import AnthropicClient, LLMError, OpenAIClient
 from backend.pipeline import Pipeline
 from backend.schemas import (
@@ -306,18 +306,16 @@ def test_validation_retry_includes_previous_sql():
 
 @pytest.fixture
 def real_pipeline_factory():
-    if not DB_PATH.exists():
-        pytest.skip("run data/seed_db.py first")
     from backend.components.query_classifier import QueryClassifier
     from backend.components.schema_linker import SchemaLinker
     from backend.components.sql_executor import SqlExecutor
     from backend.components.sql_validator import SqlValidator
-    from backend.main import index, retriever, store
+    from backend.main import database, index, retriever, store
 
     def make(client):
         return Pipeline(QueryClassifier(index), SchemaLinker(index), retriever, LlmGenerator(lambda p: client, cfg()),
-                        SqlValidator(guardrails=store.get_guardrails, blocked_columns=store.sensitive_columns), SqlExecutor(),
-                        ResultFormatter(LlmSummarizer(lambda p: client, cfg())))
+                        SqlValidator(schema=index.table_columns, guardrails=store.get_guardrails, blocked_columns=store.sensitive_columns),
+                        SqlExecutor(database), ResultFormatter(LlmSummarizer(lambda p: client, cfg())))
     return make
 
 
@@ -343,7 +341,8 @@ def test_llm_generated_destructive_sql_is_blocked_and_never_executed(real_pipeli
     r = real_pipeline_factory(client).run(QueryRequest(nl_query="please tidy up the orders list"))
     assert r.status == "blocked" and r.failed_stage == "validator" and len(client.calls) == 2
     from backend.components.sql_executor import SqlExecutor
-    assert SqlExecutor().execute("SELECT COUNT(*) FROM orders").rows[0][0] == 5000
+    from backend.main import database
+    assert SqlExecutor(database).execute("SELECT COUNT(*) FROM orders").rows[0][0] == 5000
 
 
 def test_llm_hallucinated_column_is_retried_then_succeeds(real_pipeline_factory):

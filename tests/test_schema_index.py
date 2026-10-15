@@ -1,38 +1,37 @@
 import json
-import sqlite3
 from pathlib import Path
 
 import pytest
 
+from backend import demo_data
 from backend.components.schema_linker import SchemaLinker
 from backend.components.sql_validator import SqlValidator
+from backend.db import DatabaseError
 from backend.schema_index import SchemaIndex
 from backend.schemas import ColumnMetaIn
 from backend.store import AppStore
+from backend.testing.inmemory_db import InMemoryDatabase
 
 ROOT = Path(__file__).resolve().parent.parent
 SEED = ROOT / "data" / "column_metadata.json"
 
 
+def small_dataset(extra_customers=()):
+    customers = [(1, "Asha", "a@x.com", "Mumbai", "2025-01-01", "d"), (2, "Ben", "b@x.com", "Delhi", "2025-01-02", "d"),
+                 (3, "Cy", "c@x.com", "Mumbai", "2025-01-03", "d"), *extra_customers]
+    return {"customers": customers,
+            "orders": [(1, 1, "2026-01-01", 10.0, "pending", None), (2, 2, "2026-01-02", 20.0, "completed", None)],
+            "payments": [(1, 1, 5.0, "paypal", None, "success"), (2, 2, 7.0, "net_banking", None, "refunded")]}
+
+
 @pytest.fixture
-def db(tmp_path):
-    path = tmp_path / "t.db"
-    conn = sqlite3.connect(path)
-    conn.executescript((ROOT / "data" / "schema.sql").read_text())
-    conn.executemany("INSERT INTO customers (customer_id, name, email, city) VALUES (?,?,?,?)",
-                     [(1, "Asha", "a@x.com", "Mumbai"), (2, "Ben", "b@x.com", "Delhi"), (3, "Cy", "c@x.com", "Mumbai")])
-    conn.executemany("INSERT INTO orders (order_id, customer_id, order_date, status) VALUES (?,?,?,?)",
-                     [(1, 1, "2026-01-01", "pending"), (2, 2, "2026-01-02", "completed")])
-    conn.executemany("INSERT INTO payments (payment_id, order_id, amount, payment_method, status) VALUES (?,?,?,?,?)",
-                     [(1, 1, 5, "paypal", "success"), (2, 2, 7, "net_banking", "refunded")])
-    conn.commit()
-    conn.close()
-    return path
+def db():
+    return InMemoryDatabase(small_dataset())
 
 
 @pytest.fixture
 def store(tmp_path):
-    return AppStore(tmp_path / "app.db", tmp_path / "none.db", metadata_seed=SEED).init()
+    return AppStore(tmp_path / "app.db", metadata_seed=SEED).init()
 
 
 @pytest.fixture
@@ -40,21 +39,23 @@ def index(db, store):
     return SchemaIndex(store, db)
 
 
-def test_snapshot_excludes_internal_tables_and_indexes_low_cardinality_values(index):
+def test_snapshot_lists_the_tables_and_indexes_low_cardinality_values(index):
     snap = index.snapshot()
     assert set(snap.columns) == {"customers", "products", "orders", "order_items", "payments", "reviews"}
     assert ("customers", "city", "Mumbai") in snap.values["mumbai"]
     assert ("payments", "payment_method", "net_banking") in snap.values["net banking"]
+    assert snap.primary_keys["orders"] == {"order_id"} and ("orders", "customer_id", "customers", "customer_id") in snap.fks
 
 
-def test_high_cardinality_columns_are_not_value_indexed(db, store):
-    conn = sqlite3.connect(db)
-    conn.executemany("INSERT INTO customers (customer_id, name, email, city) VALUES (?,?,?,?)",
-                     [(100 + i, f"n{i}", f"e{i}@x.com", f"City{i:03d}") for i in range(60)])
-    conn.commit()
-    conn.close()
-    values = SchemaIndex(store, db).snapshot().values
+def test_high_cardinality_columns_are_not_value_indexed(store):
+    many = [(100 + i, f"n{i}", f"e{i}@x.com", f"City{i:03d}", "2025-01-01", "d") for i in range(60)]
+    values = SchemaIndex(store, InMemoryDatabase(small_dataset(many))).snapshot().values
     assert "city001" not in values and "mumbai" not in values
+
+
+def test_keys_dates_and_numeric_looking_values_are_never_indexed(index):
+    values = index.snapshot().values
+    assert not any(k.isdigit() for k in values) and not any(k.startswith("2025 01") for k in values)
 
 
 def test_value_hits_resolve_columns(index):
@@ -140,7 +141,7 @@ def test_validator_sensitive_check_disabled_when_nothing_flagged(store):
 def test_seed_does_not_overwrite_admin_edits(tmp_path):
     seed = tmp_path / "seed.json"
     seed.write_text(json.dumps({"orders": {"status": {"description": "seeded"}}}))
-    s = AppStore(tmp_path / "app.db", tmp_path / "none.db", metadata_seed=seed).init()
+    s = AppStore(tmp_path / "app.db", metadata_seed=seed).init()
     s.upsert_column_metadata("orders", "status", ColumnMetaIn(description="edited by admin"))
     s.init()
     assert s.list_column_metadata()[0].description == "edited by admin"
@@ -148,9 +149,89 @@ def test_seed_does_not_overwrite_admin_edits(tmp_path):
 
 def test_real_seed_file_covers_every_column():
     snap = json.loads(SEED.read_text())
-    conn = sqlite3.connect(ROOT / "data" / "querymind.db") if (ROOT / "data" / "querymind.db").exists() else None
-    if conn is None:
-        pytest.skip("run data/seed_db.py first")
-    for table in ["customers", "products", "orders", "order_items", "payments", "reviews"]:
-        cols = {r[1] for r in conn.execute(f'PRAGMA table_info("{table}")')}
-        assert cols == set(snap[table]), table
+    for table in demo_data.SCHEMA:
+        assert {c.name for c in table.columns} == set(snap[table.name]), table.name
+
+
+class CountingDatabase:
+    def __init__(self, inner):
+        self.inner, self.schema_loads, self.fail = inner, 0, False
+        self.dialect = inner.dialect
+
+    def load_schema(self):
+        self.schema_loads += 1
+        if self.fail:
+            raise DatabaseError("server unavailable")
+        return self.inner.load_schema()
+
+    def sample_values(self, table, column, limit):
+        return self.inner.sample_values(table, column, limit)
+
+
+def test_snapshot_is_cached_until_the_ttl_expires(store, db):
+    counting, now = CountingDatabase(db), [0.0]
+    index = SchemaIndex(store, counting, ttl_s=60, clock=lambda: now[0])
+    index.snapshot()
+    now[0] = 59
+    index.snapshot()
+    assert counting.schema_loads == 1
+    now[0] = 61
+    index.snapshot()
+    assert counting.schema_loads == 2
+
+
+def test_a_zero_ttl_reloads_every_time(store, db):
+    counting = CountingDatabase(db)
+    index = SchemaIndex(store, counting, ttl_s=0)
+    index.snapshot()
+    index.snapshot()
+    assert counting.schema_loads == 2
+
+
+def test_refresh_forces_a_reload(store, db):
+    counting = CountingDatabase(db)
+    index = SchemaIndex(store, counting, ttl_s=3600)
+    index.snapshot()
+    index.refresh()
+    assert counting.schema_loads == 2
+
+
+def test_a_failed_refresh_serves_the_previous_snapshot_and_retries_after_the_ttl(store, db):
+    counting, now = CountingDatabase(db), [0.0]
+    index = SchemaIndex(store, counting, ttl_s=60, clock=lambda: now[0])
+    first = index.snapshot()
+    counting.fail = True
+    now[0] = 61
+    assert index.snapshot() is first
+    now[0] = 90
+    assert index.snapshot() is first and counting.schema_loads == 2, "no retry before the next interval"
+    counting.fail = False
+    now[0] = 130
+    assert index.snapshot() is not first and counting.schema_loads == 3
+
+
+def test_the_first_load_failing_is_an_error(store, db):
+    counting = CountingDatabase(db)
+    counting.fail = True
+    with pytest.raises(DatabaseError, match="server unavailable"):
+        SchemaIndex(store, counting).snapshot()
+    with pytest.raises(DatabaseError):
+        SchemaIndex(store, counting).analyze("orders")
+
+
+def test_a_column_that_cannot_be_sampled_is_skipped_not_fatal(store, db):
+    class Flaky(CountingDatabase):
+        def sample_values(self, table, column, limit):
+            if (table, column) == ("customers", "city"):
+                raise DatabaseError("timeout")
+            return super().sample_values(table, column, limit)
+
+    snap = SchemaIndex(store, Flaky(db)).snapshot()
+    assert "mumbai" not in snap.values and "pending" in snap.values
+
+
+def test_table_columns_feeds_the_validator_in_lowercase(index):
+    cols = index.table_columns()
+    assert cols["orders"] >= {"order_id", "total_amount", "status"} and set(cols) == set(demo_data.TABLE_NAMES)
+    v = SqlValidator(schema=index.table_columns)
+    assert v.validate("SELECT status FROM orders").valid and not v.validate("SELECT nope FROM orders").valid

@@ -15,13 +15,10 @@ from typing import Any, Optional
 import sqlglot
 from sqlglot import exp
 from sqlglot.errors import SqlglotError
-from sqlglot.tokens import TokenType
 
-from backend import demo_data
+from backend import demo_data, tsql_rules
 from backend.db import ColumnInfo, DatabaseError, QueryResult, QueryTimeout, ReadOnlyStatus, SchemaInfo, normalize_value
 
-SQLITE_ONLY_FUNCTIONS = {"strftime", "julianday", "date", "datetime", "ifnull", "substr", "group_concat", "random", "printf",
-                         "instr", "typeof", "unixepoch"}
 _READ_ACTIONS = {sqlite3.SQLITE_SELECT, sqlite3.SQLITE_READ, sqlite3.SQLITE_FUNCTION, sqlite3.SQLITE_RECURSIVE}
 _SQLITE_TYPES = {"INT": "INTEGER", "FLOAT": "REAL", "DATE": "TEXT", "NVARCHAR": "TEXT COLLATE NOCASE"}
 PERMISSION_DENIED = "The user does not have permission to perform this action."
@@ -82,25 +79,19 @@ class InMemoryDatabase:
 
     def _translate(self, sql: str) -> str:
         try:
-            tokens = sqlglot.tokenize(sql, read="tsql")
-            statements = [s for s in sqlglot.parse(sql, read="tsql") if s is not None]
+            tokens = tsql_rules.tokenize(sql)
+            statements = [s for s in sqlglot.parse(sql, read=tsql_rules.DIALECT) if s is not None]
         except SqlglotError as e:
             raise DatabaseError(f"Incorrect syntax: {str(e).splitlines()[0]}") from e
-        if any(t.token_type == TokenType.LIMIT for t in tokens):
-            raise DatabaseError("Incorrect syntax near 'LIMIT'.")
+        errors = tsql_rules.token_errors(tokens)
+        if errors:
+            raise DatabaseError(errors[0])
         if len(statements) != 1 or isinstance(statements[0], exp.Execute):
             raise DatabaseError(PERMISSION_DENIED)
         tree = statements[0]
-        for token, following in zip(tokens, tokens[1:]):
-            if token.text.lower() in SQLITE_ONLY_FUNCTIONS and following.token_type == TokenType.L_PAREN:
-                raise DatabaseError(f"'{token.text.lower()}' is not a recognized built-in function name.")
-        for select in tree.find_all(exp.Select):
-            aliases = {e.alias.lower() for e in select.expressions if isinstance(e, exp.Alias)} - self._column_names
-            for clause in ("where", "group", "having"):
-                node = select.args.get(clause)
-                for col in (node.find_all(exp.Column) if node is not None else ()):
-                    if not col.table and col.name.lower() in aliases:
-                        raise DatabaseError(f"Invalid column name '{col.name}'.")
+        errors = tsql_rules.alias_errors(tree, self._column_names)
+        if errors:
+            raise DatabaseError(errors[0])
         for table in tree.find_all(exp.Table):
             if table.args.get("db") is not None and table.args["db"].name.lower() == "dbo":
                 table.set("db", None)

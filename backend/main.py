@@ -1,7 +1,6 @@
 import csv
 import io
 import logging
-import sqlite3
 from typing import Optional
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Response
@@ -12,14 +11,15 @@ from backend.config import (
     ANTHROPIC_API_KEY,
     CORS_ORIGINS,
     DATA_DIR,
-    DB_PATH,
     EMBEDDING_MODE,
     LOG_FORMAT,
     LOG_LEVEL,
     OPENAI_API_KEY,
+    REQUIRE_READ_ONLY_LOGIN,
     admin_api_key,
 )
-from backend.factory import build_app
+from backend.db import DatabaseError
+from backend.factory import build_app, build_database
 from backend.observability import RequestContextMiddleware, configure_logging, request_id_var
 from backend.pipeline import Pipeline
 from backend.schemas import (
@@ -47,9 +47,10 @@ query_log = logging.getLogger("querymind.query")
 if admin_api_key() == "change-me":
     log.warning("ADMIN_API_KEY is still the placeholder 'change-me'; set a strong secret before exposing this service")
 
-store = AppStore(analytics_db=None, metadata_seed=DATA_DIR / "column_metadata.json",
+store = AppStore(metadata_seed=DATA_DIR / "column_metadata.json",
                  examples_seed=DATA_DIR / "examples_seed.json").init()
-_app = build_app(store, EMBEDDING_MODE)
+database = build_database()
+_app = build_app(store, EMBEDDING_MODE, database)
 index, retriever, validator = _app.index, _app.retriever, _app.validator
 
 
@@ -90,8 +91,8 @@ def query(request: QueryRequest, pipeline: Pipeline = Depends(get_pipeline)):
 def get_schema():
     try:
         return index.describe()
-    except FileNotFoundError:
-        raise HTTPException(503, f"Analytics database not found at {DB_PATH}. Run python data/seed_db.py")
+    except DatabaseError as e:
+        raise HTTPException(503, f"Analytics database unavailable: {e}")
 
 
 @admin.put("/schema/{table}/{column}", response_model=ColumnMeta)
@@ -219,20 +220,24 @@ def health():
 
 @app.get("/ready")
 def ready():
-    checks = {}
+    checks, detail = {}, {}
     try:
-        conn = sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True)
+        database.ping()
+        checks["analytics_db"] = True
+    except DatabaseError as e:
+        checks["analytics_db"], detail["analytics_db"] = False, str(e)
+    if checks["analytics_db"]:
         try:
-            checks["analytics_db"] = conn.execute("SELECT COUNT(*) FROM sqlite_master").fetchone()[0] > 0
-        finally:
-            conn.close()
-    except sqlite3.Error:
-        checks["analytics_db"] = False
+            status = database.read_only_status()
+            checks["read_only_login"] = status.read_only or not REQUIRE_READ_ONLY_LOGIN
+            detail["read_only_login"] = status.detail
+        except DatabaseError as e:
+            checks["read_only_login"], detail["read_only_login"] = False, str(e)
     try:
         checks["app_db"] = store.examples_version() >= 0
-    except sqlite3.Error:
-        checks["app_db"] = False
+    except Exception as e:
+        checks["app_db"], detail["app_db"] = False, str(e)
     provider = store.get_model_config().provider
-    body = {"status": "ready" if all(checks.values()) else "not_ready", "checks": checks, "llm_provider": provider,
+    body = {"status": "ready" if all(checks.values()) else "not_ready", "checks": checks, "detail": detail, "llm_provider": provider,
             "llm_api_key_configured": provider_key_configured(provider)}
     return JSONResponse(body, status_code=200 if all(checks.values()) else 503)

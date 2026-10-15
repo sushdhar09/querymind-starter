@@ -6,15 +6,6 @@ from dotenv import load_dotenv
 load_dotenv()
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
-# Manual fallback for DB_TYPE if dotenv failed to parse
-if "DB_TYPE" not in os.environ:
-    try:
-        with open(ROOT_DIR / ".env", "r") as f:
-            for line in f:
-                if line.strip().startswith("DB_TYPE="):
-                    os.environ["DB_TYPE"] = line.split("=",1)[1].strip().strip('"').strip("'")
-    except:
-        pass
 
 def _resolve(env_name: str, default: str) -> Path:
     p = Path(os.getenv(env_name, default))
@@ -31,9 +22,11 @@ LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 EMBEDDING_MODE = os.getenv("EMBEDDING_MODE", "onnx")  # onnx | hash (hash is for tests/CI)
 QUERY_TIMEOUT_S = float(os.getenv("QUERY_TIMEOUT_S", "5"))
 ABSOLUTE_MAX_ROWS = int(os.getenv("ABSOLUTE_MAX_ROWS", "10000"))
-# --- Azure SQL Support ---
-DB_TYPE = os.getenv("DB_TYPE", "sqlite")
+
+ANALYTICS_BACKEND = os.getenv("ANALYTICS_BACKEND", "azure").lower()  # azure | memory (memory is a test double for tests, CI and offline demos)
 AZURE_SQL_CONNECTION_STRING = os.getenv("AZURE_SQL_CONNECTION_STRING", "")
+SCHEMA_CACHE_TTL_S = float(os.getenv("SCHEMA_CACHE_TTL_S", "300"))
+REQUIRE_READ_ONLY_LOGIN = os.getenv("REQUIRE_READ_ONLY_LOGIN", "true").lower() in ("1", "true", "yes")
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if o.strip()]
 
 

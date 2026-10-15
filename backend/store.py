@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
-from backend.config import APP_DB_PATH, DB_PATH, LLM_MODEL, LLM_PROVIDER
+from backend.config import APP_DB_PATH, LLM_MODEL, LLM_PROVIDER
 from backend.schemas import (
     INTERNAL_TABLES,
     ColumnMeta,
@@ -64,10 +64,9 @@ MIGRATIONS = [
 
 
 class AppStore:
-    def __init__(self, path: Path = APP_DB_PATH, analytics_db: Optional[Path] = DB_PATH, metadata_seed: Optional[Path] = None,
+    def __init__(self, path: Path = APP_DB_PATH, metadata_seed: Optional[Path] = None,
                  examples_seed: Optional[Path] = None):
         self.path = Path(path)
-        self.analytics_db = Path(analytics_db) if analytics_db else None
         self.metadata_seed = Path(metadata_seed) if metadata_seed else None
         self.examples_seed = Path(examples_seed) if examples_seed else None
 
@@ -94,7 +93,6 @@ class AppStore:
                 c.execute(f"PRAGMA user_version = {i}")
         self._seed_column_metadata()
         self._seed_examples()
-        self._import_legacy()
         return self
 
     def _seed_examples(self) -> None:
@@ -131,32 +129,6 @@ class AppStore:
         with self._conn() as c:
             rows = c.execute("SELECT table_name, column_name FROM column_metadata WHERE is_sensitive = 1").fetchall()
         return {f"{r[0]}.{r[1]}".lower() for r in rows}
-
-    def _import_legacy(self) -> None:
-        if not self.analytics_db or not self.analytics_db.exists():
-            return
-        with self._conn() as c:
-            has_examples = c.execute("SELECT 1 FROM examples LIMIT 1").fetchone()
-            has_meta = c.execute("SELECT 1 FROM column_metadata LIMIT 1").fetchone()
-            if has_examples and has_meta:
-                return
-            src = sqlite3.connect(f"file:{self.analytics_db.as_posix()}?mode=ro", uri=True)
-            try:
-                if not has_examples:
-                    rows = src.execute("SELECT question, sql, COALESCE(query_type,'SELECT_SIMPLE') FROM few_shot_examples ORDER BY id").fetchall()
-                    seen = set()
-                    for q, s, t in rows:
-                        if (q, s) not in seen:
-                            seen.add((q, s))
-                            c.execute("INSERT INTO examples (question, sql, query_type) VALUES (?,?,?)", (q, s, t))
-                if not has_meta:
-                    for t, col, desc, sens, syn in src.execute("SELECT table_name, column_name, description, is_sensitive, synonyms FROM schema_descriptions"):
-                        syns = [s.strip() for s in (syn or "").split(",") if s.strip()]
-                        c.execute("INSERT OR IGNORE INTO column_metadata VALUES (?,?,?,?,?)", (t, col, desc or "", json.dumps(syns), int(bool(sens))))
-            except sqlite3.Error as e:
-                log.warning("Legacy import skipped: %s", e)
-            finally:
-                src.close()
 
     @staticmethod
     def _example(r: sqlite3.Row) -> ExampleRecord:
@@ -281,6 +253,8 @@ class AppStore:
 
     def get_model_config(self) -> ModelConfig:
         data = self._get_setting("model_config")
+        if data:
+            data["dialect"] = "tsql"
         return ModelConfig(**data) if data else ModelConfig(provider=LLM_PROVIDER if LLM_PROVIDER in ("mock", "openai", "anthropic", "ollama") else "mock", model=LLM_MODEL)
 
     def set_model_config(self, m: ModelConfig) -> ModelConfig:

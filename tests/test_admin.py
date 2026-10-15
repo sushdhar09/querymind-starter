@@ -5,12 +5,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 import backend.main as main
-from backend.config import DB_PATH
 from backend.main import app, store
 from backend.schemas import ColumnMetaIn, Guardrails, ModelConfig
 from backend.security import RateLimiter
 
-pytestmark = pytest.mark.skipif(not DB_PATH.exists(), reason="run data/seed_db.py first")
 KEY = {"X-API-Key": "test-admin-key"}
 anon = TestClient(app)
 admin = TestClient(app, headers=KEY)
@@ -83,7 +81,7 @@ def test_schema_includes_metadata_and_keys():
     tables = {t["table_name"]: t for t in admin.get("/admin/schema").json()}
     assert set(tables) == {"customers", "products", "orders", "order_items", "payments", "reviews"}
     status = next(c for c in tables["orders"]["columns"] if c["name"] == "status")
-    assert status["type"] == "TEXT" and status["description"] and not status["is_sensitive"]
+    assert status["type"] == "NVARCHAR" and status["description"] and not status["is_sensitive"]
     assert next(c for c in tables["orders"]["columns"] if c["name"] == "order_id")["primary_key"]
 
 
@@ -143,7 +141,7 @@ def test_guardrails_update_takes_effect_on_next_query():
     assert set(["query_logs", "few_shot_examples", "schema_descriptions"]) <= set(r.json()["blocked_tables"])
     assert admin.get("/admin/guardrails").json()["max_rows"] == 5
     body = anon.post("/query", json={"nl_query": "Orders in last 30 days"}).json()
-    assert body["status"] == "success" and body["execution"]["row_count"] == 5 and body["generated_sql"].endswith("LIMIT 5")
+    assert body["status"] == "success" and body["execution"]["row_count"] == 5 and body["generated_sql"].startswith("SELECT TOP 5 ")
 
 
 def test_guardrail_table_scope_applies_live():
@@ -159,7 +157,7 @@ def test_guardrails_validation(payload):
 
 
 def test_config_update_and_key_check(monkeypatch):
-    r = admin.put("/admin/config", json={"provider": "mock", "temperature": 0.2, "max_tokens": 512, "model": "m", "dialect": "sqlite", "llm_summary": False})
+    r = admin.put("/admin/config", json={"provider": "mock", "temperature": 0.2, "max_tokens": 512, "model": "m", "dialect": "tsql", "llm_summary": False})
     assert r.status_code == 200 and r.json()["temperature"] == 0.2 and r.json()["api_key_configured"] is True
     assert admin.get("/admin/config").json()["max_tokens"] == 512
     monkeypatch.setattr(main, "OPENAI_API_KEY", "")
@@ -168,6 +166,13 @@ def test_config_update_and_key_check(monkeypatch):
     monkeypatch.setattr(main, "OPENAI_API_KEY", "sk-test")
     ok = admin.put("/admin/config", json={"provider": "openai"})
     assert ok.status_code == 200 and ok.json()["api_key_configured"] is True and "sk-test" not in ok.text
+
+
+def test_config_rejects_dialects_other_than_tsql():
+    for dialect in ("sqlite", "postgresql", "mysql"):
+        assert admin.put("/admin/config", json={"provider": "mock", "dialect": dialect}).status_code == 422
+    assert admin.put("/query", json={}).status_code in (404, 405)
+    assert anon.post("/query", json={"nl_query": "Count orders by status", "dialect": "sqlite"}).status_code == 422
 
 
 def test_config_validation():

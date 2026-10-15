@@ -1,12 +1,11 @@
 import logging
-import sqlite3
 from typing import Callable, Mapping, Optional, Union
 
 import sqlglot
 from sqlglot import exp
 from sqlglot.errors import SqlglotError
 
-from backend.config import DB_PATH
+from backend import tsql_rules
 from backend.schemas import Guardrails, ValidatorOutput
 
 log = logging.getLogger(__name__)
@@ -24,28 +23,21 @@ TOGGLEABLE_OPERATIONS: dict[str, tuple[type, ...]] = {
 }
 ALWAYS_BLOCKED = tuple(
     getattr(exp, n) for n in (
-        "Pragma", "Attach", "Detach", "Command", "Install", "LoadData", "Copy", "Set", "Transaction", "Commit",
-        "Rollback", "Use", "Merge", "Analyze",
+        "Command", "Install", "LoadData", "Copy", "Set", "Transaction", "Commit", "Rollback", "Use", "Merge", "Analyze",
+        "Execute", "Into", "Parameter", "SessionParameter",
     ) if hasattr(exp, n)
 )
-BLOCKED_FUNCTIONS = {"load_extension", "readfile", "writefile", "edit", "fts3_tokenizer", "zeroblob", "randomblob"}
+BLOCK_MESSAGES = {"Into": "SELECT INTO is not allowed", "Execute": "EXEC is not allowed",
+                  "Parameter": "Variables (@name) are not allowed", "SessionParameter": "Variables (@@name) are not allowed"}
 QUERY_ROOTS = (exp.Select, exp.Union)
-
-
-def load_sqlite_schema(db_path=DB_PATH) -> dict[str, set[str]]:
-    conn = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
-    try:
-        tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type IN ('table','view') AND name NOT LIKE 'sqlite_%'")]
-        return {t: {c[1].lower() for c in conn.execute(f'PRAGMA table_info("{t}")')} for t in tables}
-    finally:
-        conn.close()
+ALLOWED_SCHEMA = "dbo"
 
 
 class SqlValidator:
-    def __init__(self, schema: Union[SchemaMap, Callable[[], SchemaMap], None] = None,
+    def __init__(self, schema: Union[SchemaMap, Callable[[], SchemaMap]],
                  guardrails: Union[Guardrails, Callable[[], Guardrails], None] = None,
                  blocked_columns: Optional[Callable[[], set[str]]] = None):
-        self._schema = schema or load_sqlite_schema
+        self._schema = schema
         self._guardrails = guardrails or Guardrails()
         self._blocked_columns = blocked_columns
 
@@ -56,16 +48,17 @@ class SqlValidator:
     def _get_guardrails(self) -> Guardrails:
         return self._guardrails() if callable(self._guardrails) else self._guardrails
 
-    def validate(self, sql: str, max_rows: int = 100, dialect: str = "sqlite") -> ValidatorOutput:
-        errors = self._check(sql, max_rows, dialect)
+    def validate(self, sql: str, max_rows: int = 100, dialect: str = tsql_rules.DIALECT) -> ValidatorOutput:
+        errors = self._check(sql, max_rows)
         if isinstance(errors, list):
             return ValidatorOutput(valid=False, sanitized_sql=sql, errors=errors)
-        return ValidatorOutput(valid=True, sanitized_sql=errors.sql(dialect=dialect, comments=False))
+        return ValidatorOutput(valid=True, sanitized_sql=errors.sql(dialect=tsql_rules.DIALECT, comments=False))
 
-    def _check(self, sql: str, max_rows: int, dialect: str) -> Union[list[str], exp.Expression]:
+    def _check(self, sql: str, max_rows: int) -> Union[list[str], exp.Expression]:
         g = self._get_guardrails()
         try:
-            statements = [s for s in sqlglot.parse(sql, read=dialect) if s is not None]
+            tokens = tsql_rules.tokenize(sql)
+            statements = [s for s in sqlglot.parse(sql, read=tsql_rules.DIALECT) if s is not None]
         except SqlglotError as e:
             return [f"Syntax error: {str(e).splitlines()[0]}"]
         if len(statements) != 1:
@@ -82,16 +75,18 @@ class SqlValidator:
         errors: list[str] = []
         for node in tree.walk():
             if isinstance(node, ALWAYS_BLOCKED):
-                errors.append(f"{type(node).__name__.upper()} is not allowed")
+                kind = type(node).__name__
+                errors.append(BLOCK_MESSAGES.get(kind, f"{kind.upper()} is not allowed"))
             for op, classes in TOGGLEABLE_OPERATIONS.items():
                 if op in blocked_ops and isinstance(node, classes):
                     errors.append(f"{op} statements are blocked by guardrails")
-            if isinstance(node, exp.Anonymous) and (node.name.lower() in BLOCKED_FUNCTIONS or node.name.lower().startswith("pragma_")):
-                errors.append(f"Function {node.name} is not allowed")
-            if isinstance(node, exp.Func) and not isinstance(node, exp.Anonymous) and node.sql_name().lower() in BLOCKED_FUNCTIONS:
-                errors.append(f"Function {node.sql_name()} is not allowed")
+        errors += tsql_rules.forbidden_function_errors(tokens)
         if errors:
             return sorted(set(errors))
+        if is_query:
+            errors = tsql_rules.token_errors(tokens)
+            if errors:
+                return errors
 
         errors = self._check_schema(tree, g, check_columns=is_query)
         if not errors and is_query and self._blocked_columns:
@@ -117,12 +112,13 @@ class SqlValidator:
                 errors.append("Table-valued functions are not allowed")
                 continue
             name = t.name.lower()
-            if name in derived and not t.args.get("db"):
+            db, catalog = t.args.get("db"), t.args.get("catalog")
+            if name in derived and db is None:
                 alias_to_table[(t.alias or name).lower()] = "<derived>"
                 continue
-            if t.args.get("db") or t.args.get("catalog"):
+            if catalog is not None or (db is not None and db.name.lower() != ALLOWED_SCHEMA):
                 errors.append(f"Schema-qualified table '{t.sql()}' is not allowed")
-            elif name in blocked_tables or name.startswith("sqlite_"):
+            elif name in blocked_tables:
                 errors.append(f"Table '{t.name}' is not accessible")
             elif name not in schema:
                 errors.append(f"Unknown table '{t.name}'")
@@ -150,6 +146,8 @@ class SqlValidator:
                 continue
             elif name not in known_columns and name not in defined_aliases and not has_derived:
                 errors.append(f"Unknown column '{col.name}'")
+        if not errors:
+            errors += tsql_rules.alias_errors(tree, set().union(*schema.values()) if schema else set())
         return sorted(set(errors))
 
     def _check_sensitive(self, tree: exp.Expression, blocked: set[str]) -> list[str]:

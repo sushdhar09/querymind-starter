@@ -7,3 +7,4 @@ os.environ["CHROMA_PATH"] = os.path.join(_tmp, "chroma")
 os.environ["EMBEDDING_MODE"] = "hash"
 os.environ["ADMIN_API_KEY"] = "test-admin-key"
 os.environ["RATE_LIMIT_PER_MIN"] = "0"
+os.environ["ANALYTICS_BACKEND"] = "memory"

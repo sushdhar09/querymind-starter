@@ -35,7 +35,7 @@ class Generator(Protocol):
 
 
 class Validator(Protocol):
-    def validate(self, sql: str, max_rows: int = 100, dialect: str = "sqlite") -> ValidatorOutput: ...
+    def validate(self, sql: str, max_rows: int = 100, dialect: str = "tsql") -> ValidatorOutput: ...
 
 
 class Executor(Protocol):

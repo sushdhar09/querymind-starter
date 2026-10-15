@@ -29,7 +29,7 @@ class CountingEmbedding(HashEmbedding):
 
 @pytest.fixture
 def store(tmp_path):
-    return AppStore(tmp_path / "app.db", None, examples_seed=SEED).init()
+    return AppStore(tmp_path / "app.db", examples_seed=SEED).init()
 
 
 @pytest.fixture
@@ -85,7 +85,7 @@ def test_index_persists_across_instances(store, tmp_path):
 
 
 def test_empty_store_returns_nothing(tmp_path):
-    s = AppStore(tmp_path / "app.db", None).init()
+    s = AppStore(tmp_path / "app.db").init()
     assert ExampleRetriever(s, tmp_path / "chroma", HashEmbedding()).retrieve("anything").examples == []
 
 
@@ -103,7 +103,7 @@ def test_falls_back_to_lexical_when_embedding_fails(store, tmp_path):
 
 
 def test_seeding_runs_once_and_respects_deletions(tmp_path):
-    s = AppStore(tmp_path / "app.db", None, examples_seed=SEED).init()
+    s = AppStore(tmp_path / "app.db", examples_seed=SEED).init()
     n = len(s.list_examples(limit=1000))
     assert n >= 30
     s.delete_example(s.list_examples()[0].id)
@@ -112,7 +112,7 @@ def test_seeding_runs_once_and_respects_deletions(tmp_path):
 
 
 def test_examples_version_bumps_on_mutation(tmp_path):
-    s = AppStore(tmp_path / "app.db", None).init()
+    s = AppStore(tmp_path / "app.db").init()
     v0 = s.examples_version()
     ex = s.create_example(ExampleIn(question="q", sql="SELECT 1"))
     s.update_example(ex.id, ExampleIn(question="q2", sql="SELECT 1"))

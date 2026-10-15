@@ -3,14 +3,14 @@ from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field, field_validator
 
 QueryType = Literal["SELECT_SIMPLE", "SELECT_AGGREGATE", "SELECT_JOIN", "SELECT_TEMPORAL", "UNSUPPORTED"]
-Dialect = Literal["sqlite", "postgresql", "mysql"]
+Dialect = Literal["tsql"]
 
 
 class QueryRequest(BaseModel):
     nl_query: str = Field(min_length=1, max_length=1000)
     clarify_ambiguities: bool = False
     column_choices: dict[str, str] = {}
-    dialect: Dialect = "sqlite"
+    dialect: Dialect = "tsql"
     max_rows: int = Field(default=100, ge=1, le=10000)
 
 
@@ -86,7 +86,7 @@ class RetrieverOutput(BaseModel):
 
 class GeneratorInput(BaseModel):
     nl_query: str
-    dialect: Dialect = "sqlite"
+    dialect: Dialect = "tsql"
     linker: LinkerOutput = LinkerOutput()
     examples: list[Example] = []
     feedback: Optional[str] = None
@@ -165,7 +165,7 @@ class ModelConfig(BaseModel):
     model: str = "gpt-4o-mini"
     temperature: float = Field(default=0.0, ge=0, le=2)
     max_tokens: int = Field(default=1024, ge=64, le=32000)
-    dialect: Dialect = "sqlite"
+    dialect: Dialect = "tsql"
     llm_summary: bool = True
 
 
