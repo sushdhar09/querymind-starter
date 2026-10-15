@@ -1,19 +1,19 @@
 import logging
 import re
 import sqlite3
+import pyodbc
 from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from backend.config import DB_PATH
+from backend.config import DB_PATH, DB_TYPE, ROOT_DIR
 from backend.schemas import INTERNAL_TABLES, Ambiguity, ColumnContext, SchemaColumn, SchemaTable, TableContext
 from backend.store import AppStore
 
 log = logging.getLogger(__name__)
 
 VALUE_CARDINALITY_LIMIT = 50
-
 
 @dataclass
 class Snapshot:
@@ -22,7 +22,6 @@ class Snapshot:
     values: dict[str, list[tuple[str, str, str]]]
     primary_keys: dict[str, set[str]] = field(default_factory=dict)
 
-
 @dataclass
 class Analysis:
     tables: list[str] = field(default_factory=list)
@@ -30,7 +29,6 @@ class Analysis:
     excluded: list[str] = field(default_factory=list)
     ambiguities: list[Ambiguity] = field(default_factory=list)
     value_hits: list[str] = field(default_factory=list)
-
 
 def _forms(term: str) -> set[str]:
     forms = {term}
@@ -44,13 +42,25 @@ def _forms(term: str) -> set[str]:
         forms |= {term + "s", term + "es"}
     return forms
 
-
 def _pattern(term: str) -> re.Pattern:
     alts = "|".join(re.escape(f) for f in sorted(_forms(term), key=len, reverse=True))
     return re.compile(rf"(?<![a-z0-9])(?:{alts})(?![a-z0-9])")
 
+def _get_azure_conn_str():
+    env_path = ROOT_DIR / ".env"
+    if not env_path.exists():
+        return None
+    with open(env_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith("AZURE_SQL_CONNECTION_STRING="):
+                val = line.split("=", 1)[1].strip()
+                if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                    val = val[1:-1]
+                return val
+    return None
 
-def load_snapshot(db_path: Path, internal_tables=INTERNAL_TABLES) -> Snapshot:
+def load_snapshot_sqlite(db_path: Path, internal_tables=INTERNAL_TABLES) -> Snapshot:
     conn = sqlite3.connect(f"file:{db_path.as_posix()}?mode=ro", uri=True)
     columns, fks, values, primary_keys = {}, [], defaultdict(list), {}
     try:
@@ -77,6 +87,74 @@ def load_snapshot(db_path: Path, internal_tables=INTERNAL_TABLES) -> Snapshot:
         conn.close()
     return Snapshot(columns, fks, dict(values), primary_keys)
 
+def load_snapshot_azure(internal_tables=INTERNAL_TABLES) -> Snapshot:
+    conn_str = _get_azure_conn_str()
+    conn = pyodbc.connect(conn_str)
+    columns, fks, values, primary_keys = {}, [], defaultdict(list), {}
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' AND TABLE_SCHEMA='dbo'")
+        names = [r[0] for r in cur.fetchall() if r[0] not in internal_tables]
+
+        for t in names:
+            cur.execute(f"SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='{t}' ORDER BY ORDINAL_POSITION")
+            cols = cur.fetchall()
+            columns[t] = [(c[0], c[1]) for c in cols]
+
+            # Primary keys
+            cur.execute(f"""
+                SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.KEY_COLUMN_USAGE
+                WHERE TABLE_NAME='{t}' AND CONSTRAINT_NAME LIKE 'PK_%'
+            """)
+            primary_keys[t] = {r[0] for r in cur.fetchall()}
+
+        # Foreign keys from sys tables
+        cur.execute("""
+            SELECT
+                tp.name as table_name,
+                cp.name as column_name,
+                tr.name as ref_table,
+                cr.name as ref_column
+            FROM sys.foreign_keys fk
+            INNER JOIN sys.foreign_key_columns fkc ON fk.object_id = fkc.constraint_object_id
+            INNER JOIN sys.tables tp ON fkc.parent_object_id = tp.object_id
+            INNER JOIN sys.columns cp ON fkc.parent_object_id = cp.object_id AND fkc.parent_column_id = cp.column_id
+            INNER JOIN sys.tables tr ON fkc.referenced_object_id = tr.object_id
+            INNER JOIN sys.columns cr ON fkc.referenced_object_id = cr.object_id AND fkc.referenced_column_id = cr.column_id
+        """)
+        fks = [(r[0], r[1], r[2], r[3]) for r in cur.fetchall()]
+
+        # Sample values for text columns (limit to avoid heavy queries)
+        for t in names:
+            for col_name, col_type in columns[t]:
+                if col_name in primary_keys.get(t, set()) or col_name.endswith("_id") or col_name == "id":
+                    continue
+                if "CHAR" not in col_type.upper() and "TEXT" not in col_type.upper() and "VARCHAR" not in col_type.upper():
+                    continue
+                try:
+                    cur.execute(f"SELECT DISTINCT TOP {VALUE_CARDINALITY_LIMIT+1} [{col_name}] FROM [{t}] WHERE [{col_name}] IS NOT NULL")
+                    vals = [r[0] for r in cur.fetchall()]
+                    if len(vals) > VALUE_CARDINALITY_LIMIT:
+                        continue
+                    for v in vals:
+                        if v is None:
+                            continue
+                        s = str(v).strip()
+                        if 3 <= len(s) <= 40 and not s.isdigit() and not re.match(r"^\d{4}-\d{2}-\d{2}", s):
+                            values[re.sub(r"[^a-z0-9]+", " ", s.lower()).strip()].append((t, col_name, s))
+                except:
+                    continue
+    finally:
+        conn.close()
+    return Snapshot(columns, fks, dict(values), primary_keys)
+
+def load_snapshot(db_path: Path = None, internal_tables=INTERNAL_TABLES) -> Snapshot:
+    from backend.config import DB_PATH as DEFAULT_PATH
+    if DB_TYPE.lower() == 'azuresql':
+        return load_snapshot_azure(internal_tables)
+    else:
+        path = db_path or DEFAULT_PATH
+        return load_snapshot_sqlite(path, internal_tables)
 
 class SchemaIndex:
     def __init__(self, store: AppStore, db_path: Path = DB_PATH):
@@ -86,10 +164,15 @@ class SchemaIndex:
         self._mtime = None
 
     def snapshot(self) -> Snapshot:
-        mtime = self.db_path.stat().st_mtime_ns
-        if self._snap is None or mtime != self._mtime:
-            self._snap, self._mtime = load_snapshot(self.db_path), mtime
-        return self._snap
+        if DB_TYPE.lower() == 'azuresql':
+            if self._snap is None:
+                self._snap = load_snapshot(self.db_path)
+            return self._snap
+        else:
+            mtime = self.db_path.stat().st_mtime_ns if self.db_path.exists() else 0
+            if self._snap is None or mtime!= self._mtime:
+                self._snap, self._mtime = load_snapshot(self.db_path), mtime
+            return self._snap
 
     def _meta(self):
         return {(m.table_name.lower(), m.column_name.lower()): m for m in self.store.list_column_metadata()}
@@ -131,7 +214,7 @@ class SchemaIndex:
         resolved: dict[tuple, str] = {}
         pending: dict[str, list[tuple]] = {}
         for term, ts in hits.items():
-            non_table = [x for x in ts if x[0] != "table"]
+            non_table = [x for x in ts if x[0]!= "table"]
             if len(non_table) == 1:
                 resolved[non_table[0][:3]] = non_table[0][3] if non_table[0][0] == "value" else ""
             elif len(non_table) > 1:

@@ -18,6 +18,10 @@ RUN useradd --create-home --uid 10001 app \
     && chown app:app /var/lib/querymind
 USER app
 
+RUN apt-get update && apt-get install -y curl gnupg \
+  && curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
+  && curl https://packages.microsoft.com/config/debian/12/prod.list > /etc/apt/sources.list.d/mssql-release.list \
+  && apt-get update && ACCEPT_EULA=Y apt-get install -y msodbcsql18 unixodbc-dev
 # Bake the local embedding model (about 80 MB) into the image so the container works without internet at runtime.
 RUN python -c "from chromadb.utils.embedding_functions import DefaultEmbeddingFunction as E; E()(['warm up'])"
 
