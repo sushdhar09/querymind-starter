@@ -19,7 +19,7 @@ def _row_key(row) -> tuple:
     return tuple((type(v).__name__ if v is None else "v", repr(_norm_value(v))) for v in row)
 
 
-def is_ordered(sql: str, dialect: str = "sqlite") -> bool:
+def is_ordered(sql: str, dialect: str = "tsql") -> bool:
     try:
         return sqlglot.parse_one(sql, read=dialect).args.get("order") is not None
     except SqlglotError:
@@ -34,7 +34,7 @@ def rows_match(generated: list, truth: list, ordered: bool = False) -> bool:
     return g == t if ordered else sorted(g) == sorted(t)
 
 
-def sql_equivalent(generated: str, truth: str, dialect: str = "sqlite") -> bool:
+def sql_equivalent(generated: str, truth: str, dialect: str = "tsql") -> bool:
     if not generated or not generated.strip():
         return False
     try:

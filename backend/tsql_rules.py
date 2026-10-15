@@ -11,7 +11,8 @@ DIALECT = "tsql"
 SQLITE_ONLY_FUNCTIONS = {"strftime", "julianday", "date", "datetime", "ifnull", "substr", "group_concat", "random", "printf",
                          "instr", "typeof", "unixepoch"}
 FORBIDDEN_FUNCTIONS = {"openrowset", "openquery", "opendatasource", "xp_cmdshell", "sp_executesql", "db_name", "suser_sname",
-                       "suser_name", "user_name", "host_name", "app_name", "serverproperty"}
+                       "suser_name", "user_name", "host_name", "app_name", "serverproperty", "load_extension", "readfile",
+                       "writefile"}
 TSQL_HINTS = {
     "limit": "T-SQL has no LIMIT; use SELECT TOP n (or OFFSET ... FETCH after ORDER BY)",
     "date": "DATE is a type, not a function; use CAST(x AS DATE), DATEADD(...) or GETDATE()",

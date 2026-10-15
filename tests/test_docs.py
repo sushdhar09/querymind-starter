@@ -1,17 +1,15 @@
 import importlib.util
+import os
 import re
-import sqlite3
 import subprocess
 import sys
 from pathlib import Path
 
-import pytest
-
-from backend.config import DB_PATH
+from backend import demo_data
+from backend.testing.inmemory_db import InMemoryDatabase
 
 ROOT = Path(__file__).resolve().parent.parent
 README = (ROOT / "README.md").read_text(encoding="utf-8")
-needs_db = pytest.mark.skipif(not DB_PATH.exists(), reason="run data/seed_db.py first")
 
 
 def load_generator():
@@ -33,7 +31,7 @@ def test_readme_configuration_table_matches_env_example():
     documented = set()
     for row in re.findall(r"^\| (`[^|]+`) \|", section, re.MULTILINE):
         documented |= set(re.findall(r"`([A-Z_]+)`", row))
-    example = {line.split("=")[0] for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines() if "=" in line}
+    example = {line.split("=")[0] for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines() if "=" in line and not line.lstrip().startswith("#")}
     assert documented <= example, f"documented but not in .env.example: {documented - example}"
     assert example <= documented, f"in .env.example but undocumented: {example - documented}"
 
@@ -55,30 +53,39 @@ def test_readme_states_the_key_caveats():
         assert caveat in README
 
 
-@needs_db
 def test_data_dictionary_covers_every_table_and_column():
     text = (ROOT / "docs" / "DATA_DICTIONARY.md").read_text(encoding="utf-8")
-    conn = sqlite3.connect(f"file:{DB_PATH.as_posix()}?mode=ro", uri=True)
-    for (table,) in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'"):
-        if table in {"query_logs", "few_shot_examples", "schema_descriptions"}:
-            assert f"`{table}`" not in text
-            continue
-        assert f"## `{table}`" in text
-        for column in (r[1] for r in conn.execute(f'PRAGMA table_info("{table}")')):
-            assert f"`{column}`" in text, f"{table}.{column} missing from the data dictionary"
+    for table in demo_data.SCHEMA:
+        assert f"## `{table.name}`" in text
+        for column in table.columns:
+            assert f"`{column.name}`" in text, f"{table.name}.{column.name} missing from the data dictionary"
+    for internal in ("query_logs", "few_shot_examples", "schema_descriptions"):
+        assert f"`{internal}`" not in text
     assert "Known ambiguities" in text and "orders.total_amount" in text and "payments.amount" in text
+    assert "NVARCHAR" in text and "SQLite" not in text and "T-SQL" in text
 
 
-@needs_db
 def test_committed_data_dictionary_is_up_to_date():
-    generated = load_generator().build(DB_PATH)
+    generated = load_generator().build(InMemoryDatabase())
     committed = (ROOT / "docs" / "DATA_DICTIONARY.md").read_text(encoding="utf-8")
     assert committed.strip() == generated.strip(), "run: python data/generate_data_dictionary.py"
 
 
-@needs_db
 def test_data_dictionary_script_runs_standalone(tmp_path):
     out = tmp_path / "dict.md"
-    result = subprocess.run([sys.executable, "data/generate_data_dictionary.py", "--out", str(out)], cwd=ROOT,
+    env = {**os.environ, "ANALYTICS_BACKEND": "memory"}
+    result = subprocess.run([sys.executable, "data/generate_data_dictionary.py", "--out", str(out)], cwd=ROOT, env=env,
                             capture_output=True, text=True, timeout=60)
     assert result.returncode == 0 and out.read_text(encoding="utf-8").startswith("# Data dictionary")
+
+
+def test_data_dictionary_describes_the_database_it_is_given():
+    class Tiny(InMemoryDatabase):
+        def load_schema(self):
+            schema = super().load_schema()
+            schema.tables = {"orders": schema.tables["orders"]}
+            schema.foreign_keys = [fk for fk in schema.foreign_keys if fk[0] == "orders"]
+            return schema
+
+    text = load_generator().build(Tiny())
+    assert "## `orders`" in text and "## `customers`" not in text and "`orders.customer_id` references `customers.customer_id`" in text

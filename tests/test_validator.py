@@ -74,6 +74,9 @@ TSQL_ESCAPES = [
     "SELECT * FROM #temp",
     "PRAGMA writable_schema = 1",
     "ATTACH DATABASE 'evil.db' AS e",
+    "SELECT load_extension('evil.dll')",
+    "SELECT readfile('/etc/passwd')",
+    "SELECT writefile('/tmp/x', 'data')",
 ]
 OUT_OF_SCHEMA = [
     ("SELECT * FROM secrets", "Unknown table"),

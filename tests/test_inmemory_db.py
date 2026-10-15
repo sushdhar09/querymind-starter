@@ -155,3 +155,16 @@ def test_same_data_gives_same_results_across_instances():
     two = InMemoryDatabase(demo_data.generate(today=date(2026, 1, 1)))
     sql = "SELECT TOP 20 name, SUM(total_amount) AS s FROM customers c JOIN orders o ON o.customer_id = c.customer_id GROUP BY name ORDER BY s DESC, name"
     assert one.query(sql, 100, 5).rows == two.query(sql, 100, 5).rows
+
+
+def test_no_hostile_statement_can_crash_the_double_or_change_anything(db):
+    import json
+    from pathlib import Path
+    cases = json.loads((Path(__file__).resolve().parent.parent / "eval" / "guardrail_cases.json").read_text(encoding="utf-8"))
+    before = db.fingerprint()
+    for sql in cases["sql_attacks"] + ["SELECT * FROM a.b.c.d.e", "SELECT * FROM ..x", "SELECT * FROM", ")(", "SELECT '" + "A" * 5000]:
+        try:
+            db.query(sql, 10, 1)
+        except DatabaseError:
+            pass
+    assert db.fingerprint() == before

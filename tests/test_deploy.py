@@ -95,7 +95,7 @@ def test_next_standalone_output_is_opt_in():
 
 
 def test_env_example_documents_every_variable_the_deployment_uses():
-    keys = {line.split("=")[0] for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines() if "=" in line}
+    keys = {line.split("=")[0] for line in (ROOT / ".env.example").read_text(encoding="utf-8").splitlines() if "=" in line and not line.lstrip().startswith("#")}
     used = set(re.findall(r"\$\{(\w+)[:?-]", (ROOT / "docker-compose.yml").read_text(encoding="utf-8")))
     assert used <= keys and {"SEED_ON_START", "ADMIN_API_KEY", "NEXT_PUBLIC_API_URL"} <= keys
 

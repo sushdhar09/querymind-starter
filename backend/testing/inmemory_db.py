@@ -81,6 +81,14 @@ class InMemoryDatabase:
 
     def _translate(self, sql: str) -> str:
         try:
+            return self._translate_checked(sql)
+        except DatabaseError:
+            raise
+        except Exception as e:
+            raise DatabaseError(f"Could not execute statement ({type(e).__name__})") from e
+
+    def _translate_checked(self, sql: str) -> str:
+        try:
             tokens = tsql_rules.tokenize(sql)
             statements = [s for s in sqlglot.parse(sql, read=tsql_rules.DIALECT) if s is not None]
         except SqlglotError as e:
@@ -98,7 +106,8 @@ class InMemoryDatabase:
             if cast.to.this in _DATETIME_TYPES:
                 cast.replace(cast.this)
         for table in tree.find_all(exp.Table):
-            if table.args.get("db") is not None and table.args["db"].name.lower() == "dbo":
+            schema = table.args.get("db")
+            if schema is not None and getattr(schema, "name", str(schema)).lower() == "dbo":
                 table.set("db", None)
         try:
             return tree.sql(dialect="sqlite")

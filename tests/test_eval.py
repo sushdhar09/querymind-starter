@@ -5,12 +5,12 @@ import pytest
 
 import backend.components.sql_executor as sql_executor
 import eval.evaluation_harness as harness
-from backend.config import DB_PATH
+from backend.db import DatabaseError, ReadOnlyStatus
 from backend.schemas import GeneratorOutput, ValidatorOutput
+from backend.testing.inmemory_db import InMemoryDatabase
 from eval import metrics
 
 ROOT = Path(__file__).resolve().parent.parent
-needs_db = pytest.mark.skipif(not DB_PATH.exists(), reason="run data/seed_db.py first")
 
 
 def test_rows_match_is_order_insensitive_unless_ordered():
@@ -43,8 +43,9 @@ def test_is_ordered():
     ("select status, count(*) from orders group by status", "SELECT status, COUNT(*) FROM orders GROUP BY status", True),
     ("SELECT p.name FROM products AS p", "SELECT p.name FROM products p", True),
     ("SELECT a FROM t WHERE x = 1 AND y = 2", "SELECT a FROM t WHERE y = 2 AND x = 1", True),
-    ("SELECT * FROM orders LIMIT 100", "SELECT * FROM orders", True),
-    ("SELECT * FROM orders LIMIT 5", "SELECT * FROM orders LIMIT 10", False),
+    ("SELECT TOP 100 * FROM orders", "SELECT * FROM orders", True),
+    ("SELECT TOP 5 * FROM orders", "SELECT TOP 10 * FROM orders", False),
+    ("SELECT AVG(CAST(x AS FLOAT)) AS a FROM t", "SELECT AVG(x) AS a FROM t", False),
     ("SELECT a FROM t", "SELECT b FROM t", False),
     ("SELECT SUM(x) AS s FROM t", "SELECT SUM(x) AS total FROM t", False),
     ("SELECT a FROM t WHERE x = 1", "SELECT a FROM t WHERE x = 2", False),
@@ -80,6 +81,8 @@ def test_breakdown_and_weighted_score():
     ("SELECT 1", True), ("WITH a AS (SELECT 1) SELECT * FROM a", True), ("SELECT 1 UNION SELECT 2", True),
     ("DELETE FROM orders", False), ("SELECT 1; DROP TABLE x", False), ("PRAGMA foreign_keys=OFF", False),
     ("WITH d AS (DELETE FROM orders RETURNING *) SELECT * FROM d", False), ("not sql ((", False),
+    ("SELECT TOP 5 * FROM orders", True), ("SELECT * INTO copy FROM orders", False), ("EXEC sp_who", False),
+    ("WITH d AS (SELECT * FROM orders) DELETE FROM d", False), ("SELECT 1; EXEC sp_who", False),
 ])
 def test_independent_read_only_check(sql, expected):
     assert harness.is_read_only_select(sql) is expected
@@ -105,7 +108,7 @@ def test_examples_do_not_contain_paraphrases():
 def app(tmp_path, monkeypatch):
     monkeypatch.setattr(sql_executor, "QUERY_TIMEOUT_S", 0.5)
     monkeypatch.setattr(harness, "QUERY_TIMEOUT_S", 0.5)
-    return harness.build_eval_app("mock", "m", "hash", tmp_path, DB_PATH)
+    return harness.build_eval_app("mock", "m", "hash", tmp_path, InMemoryDatabase())
 
 
 @pytest.fixture
@@ -114,27 +117,24 @@ def tests_and_truth():
     return tests, {t["id"]: t for t in tests}
 
 
-@needs_db
 def test_harness_scores_correct_sql_as_correct(app, tests_and_truth):
     tests, truth = tests_and_truth
     results = harness.run_query_set(app, tests[:4], truth, "test")
     assert all(r["execution_match"] and r["exact_match"] and r["status"] == "success" for r in results)
 
 
-@needs_db
 def test_harness_scores_wrong_results_as_wrong(app, tests_and_truth):
     tests, truth = tests_and_truth
 
     class Wrong:
         def generate(self, req):
-            return GeneratorOutput(sql="SELECT status, COUNT(*) FROM orders GROUP BY status", explanation="")
+            return GeneratorOutput(sql="SELECT status, COUNT(*) AS n FROM orders GROUP BY status", explanation="")
 
     app.pipeline = harness.with_parts(app, generator=Wrong())
     results = harness.run_query_set(app, [tests[0]], truth, "test")
     assert results[0]["status"] == "success" and not results[0]["execution_match"] and not results[0]["exact_match"]
 
 
-@needs_db
 def test_harness_never_substitutes_fallback_sql(app, tests_and_truth):
     tests, truth = tests_and_truth
 
@@ -148,7 +148,6 @@ def test_harness_never_substitutes_fallback_sql(app, tests_and_truth):
     assert harness.summarize_set(results)["execution_accuracy"]["rate"] == 0
 
 
-@needs_db
 def test_harness_detects_truncated_results(app, tests_and_truth):
     tests, truth = tests_and_truth
     app.store.set_guardrails(app.store.get_guardrails().model_copy(update={"max_rows": 100}))
@@ -156,34 +155,31 @@ def test_harness_detects_truncated_results(app, tests_and_truth):
     assert not results[0]["execution_match"] and results[0]["gt_rows"] == 5000
 
 
-@needs_db
 def test_guardrail_suite_passes_for_the_real_validator(app, tests_and_truth):
     tests, _ = tests_and_truth
     cases = json.loads((ROOT / "eval" / "guardrail_cases.json").read_text())
-    report = harness.run_guardrails(app, cases, DB_PATH, tests)
+    report = harness.run_guardrails(app, cases, tests)
     assert report["compliance"]["correct"] == report["compliance"]["total"] == len(cases["nl_attacks"]) + len(cases["sql_attacks"])
     assert report["executor_only"]["denied"] == report["executor_only"]["destructive_total"] > 30
     assert report["resource_attacks"]["contained"] == len(cases["resource_attacks"])
     assert report["database_unchanged"] and not report["false_positives"]["classified_unsupported"] and not report["false_positives"]["valid_sql_rejected"]
 
 
-@needs_db
 def test_guardrail_suite_catches_a_permissive_validator(app, tests_and_truth):
     tests, _ = tests_and_truth
 
     class AllowEverything:
-        def validate(self, sql, max_rows=100, dialect="sqlite"):
+        def validate(self, sql, max_rows=100, dialect="tsql"):
             return ValidatorOutput(valid=True, sanitized_sql=sql)
 
     app.pipeline.validator = AllowEverything()
     cases = json.loads((ROOT / "eval" / "guardrail_cases.json").read_text())
-    report = harness.run_guardrails(app, cases, DB_PATH, tests)
+    report = harness.run_guardrails(app, cases, tests)
     assert report["sql_attacks"]["blocked_by_validator"] < len(cases["sql_attacks"]) // 2
     assert report["compliance"]["correct"] < report["compliance"]["total"]
     assert report["database_unchanged"], "the executor layer must still protect the data"
 
 
-@needs_db
 def test_cli_writes_reports_and_gates(tmp_path, monkeypatch):
     monkeypatch.setattr(sql_executor, "QUERY_TIMEOUT_S", 0.5)
     monkeypatch.setattr(harness, "QUERY_TIMEOUT_S", 0.5)
@@ -193,11 +189,74 @@ def test_cli_writes_reports_and_gates(tmp_path, monkeypatch):
     report = json.loads(files[".json"].read_text())
     assert report["meta"]["queries"] == 3 and "paraphrase_set" in report and all(report["gates"].values())
     md = files[".md"].read_text()
-    assert "## Per query type" in md and "Read this first" in md and "95% CI" in md
+    assert "## Per query type" in md and "Read this first" in md and "95% CI" in md and "in-memory test double, not SQL Server" in md
+    assert report["meta"]["database_kind"] == "memory" and report["guardrails"]["resource_attacks"]["skipped"] is False
 
 
-@needs_db
 def test_cli_fails_when_a_gate_fails(tmp_path, monkeypatch):
     monkeypatch.setattr(sql_executor, "QUERY_TIMEOUT_S", 0.5)
     monkeypatch.setattr(harness, "QUERY_TIMEOUT_S", 0.5)
     assert harness.main(["--embedding", "hash", "--limit", "3", "--no-paraphrase", "--min-exec-acc", "1.01", "--out-dir", str(tmp_path)]) == 1
+
+
+def test_database_unchanged_is_detected_by_the_fingerprint(app, tests_and_truth):
+    tests, _ = tests_and_truth
+    cases = {"nl_attacks": [], "sql_attacks": [], "resource_attacks": [], "benign_nl_controls": []}
+    assert harness.run_guardrails(app, cases, tests)["database_unchanged"]
+    calls = []
+    original = app.database.fingerprint
+
+    def drifting():
+        calls.append(1)
+        data = original()
+        return {**data, "orders": data["orders"] + ("x" * (len(calls) - 1))}
+
+    app.database.fingerprint = drifting
+    assert not harness.run_guardrails(app, cases, tests)["database_unchanged"]
+
+
+def test_resource_attacks_can_be_skipped(app, tests_and_truth):
+    tests, _ = tests_and_truth
+    cases = json.loads((ROOT / "eval" / "guardrail_cases.json").read_text())
+    report = harness.run_guardrails(app, cases, tests, resource_attacks=False)
+    assert report["resource_attacks"] == {"skipped": True, "total": 0, "contained": 0, "details": []}
+
+
+class FakeAzure(InMemoryDatabase):
+    def __init__(self, read_only=True, ping_error=None):
+        super().__init__()
+        self._ro, self._ping_error = read_only, ping_error
+
+    def read_only_status(self):
+        return ReadOnlyStatus(self._ro, "login can write: db_owner" if not self._ro else "ok")
+
+    def ping(self):
+        if self._ping_error:
+            raise DatabaseError(self._ping_error)
+
+
+def test_azure_mode_refuses_a_login_that_can_write(monkeypatch):
+    monkeypatch.setattr(harness, "build_database", lambda *a, **k: FakeAzure(read_only=False))
+    with pytest.raises(SystemExit, match="Refusing to evaluate against a login that can write.*db_owner"):
+        harness.open_database("azure")
+
+
+def test_azure_mode_reports_an_unreachable_server(monkeypatch):
+    monkeypatch.setattr(harness, "build_database", lambda *a, **k: FakeAzure(ping_error="Could not connect to Azure SQL (08001)"))
+    with pytest.raises(SystemExit, match="Cannot use Azure SQL: Could not connect to Azure SQL .08001."):
+        harness.open_database("azure")
+
+
+def test_azure_mode_skips_resource_attacks_unless_asked(tmp_path, monkeypatch):
+    monkeypatch.setattr(harness, "build_database", lambda *a, **k: FakeAzure())
+    monkeypatch.setattr(sql_executor, "QUERY_TIMEOUT_S", 0.5)
+    monkeypatch.setattr(harness, "QUERY_TIMEOUT_S", 0.5)
+    args = ["--embedding", "hash", "--limit", "2", "--no-paraphrase", "--database", "azure"]
+    assert harness.main(args + ["--out-dir", str(tmp_path / "a")]) == 0
+    skipped = json.loads(next((tmp_path / "a").glob("*.json")).read_text())
+    assert skipped["meta"]["database_kind"] == "azure" and skipped["guardrails"]["resource_attacks"]["skipped"] is True
+    md = next((tmp_path / "a").glob("*.md")).read_text()
+    assert "Resource attacks: skipped" in md and "Database: **Azure SQL**" in md and "in-memory test double, not SQL Server" not in md
+    assert harness.main(args + ["--azure-resource-attacks", "--out-dir", str(tmp_path / "b")]) == 0
+    ran = json.loads(next((tmp_path / "b").glob("*.json")).read_text())
+    assert ran["guardrails"]["resource_attacks"]["skipped"] is False and ran["guardrails"]["resource_attacks"]["total"] == 2
