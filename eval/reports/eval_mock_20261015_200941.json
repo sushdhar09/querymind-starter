@@ -1,17 +1,19 @@
 {
   "meta": {
-    "timestamp": "2026-10-14 11:44:02",
+    "timestamp": "2026-10-15 20:08:49",
     "provider": "mock",
     "model": "templates",
     "embedding": "onnx",
+    "database": "in-memory test double",
+    "database_kind": "memory",
     "python": "3.12.10",
     "git": {
-      "commit": "5be5405",
-      "dirty": true
+      "commit": "e3ba5bb",
+      "dirty": false
     },
-    "test_set_sha256": "172450a9a8f0",
+    "test_set_sha256": "56c141e091c5",
     "queries": 25,
-    "duration_s": 57.2
+    "duration_s": 60.7
   },
   "test_set": {
     "execution_accuracy": {
@@ -126,7 +128,7 @@
     "status_counts": {
       "success": 25
     },
-    "avg_latency_ms": 558.7
+    "avg_latency_ms": 330.3
   },
   "test_results": [
     {
@@ -141,12 +143,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT * FROM customers WHERE city = 'Mumbai'",
-      "generated": "SELECT * FROM customers WHERE city = 'Mumbai' LIMIT 10000",
+      "generated": "SELECT TOP 10000 * FROM customers WHERE city = 'Mumbai'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 76,
       "gen_rows": 76,
-      "latency_ms": 3745
+      "latency_ms": 1456
     },
     {
       "set": "test",
@@ -160,12 +162,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT * FROM products WHERE category = 'Electronics'",
-      "generated": "SELECT * FROM products WHERE category = 'Electronics' LIMIT 10000",
+      "generated": "SELECT TOP 10000 * FROM products WHERE category = 'Electronics'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 36,
       "gen_rows": 36,
-      "latency_ms": 665
+      "latency_ms": 270
     },
     {
       "set": "test",
@@ -179,12 +181,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT * FROM orders WHERE status = 'pending'",
-      "generated": "SELECT * FROM orders WHERE status = 'pending' LIMIT 10000",
+      "generated": "SELECT TOP 10000 * FROM orders WHERE status = 'pending'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 1644,
       "gen_rows": 1644,
-      "latency_ms": 546
+      "latency_ms": 234
     },
     {
       "set": "test",
@@ -197,13 +199,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT status, COUNT(*) FROM orders GROUP BY status",
-      "generated": "SELECT status, COUNT(*) FROM orders GROUP BY status LIMIT 10000",
+      "ground_truth": "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status",
+      "generated": "SELECT TOP 10000 status, COUNT(*) AS order_count FROM orders GROUP BY status",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 3,
       "gen_rows": 3,
-      "latency_ms": 460
+      "latency_ms": 237
     },
     {
       "set": "test",
@@ -216,13 +218,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT p.category, SUM(oi.quantity * oi.unit_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category",
-      "generated": "SELECT p.category, SUM(oi.quantity * oi.unit_price) AS revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id GROUP BY p.category LIMIT 10000",
+      "ground_truth": "SELECT p.category, SUM(oi.quantity * oi.unit_price) AS revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category",
+      "generated": "SELECT TOP 10000 p.category, SUM(oi.quantity * oi.unit_price) AS revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id GROUP BY p.category",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 5,
       "gen_rows": 5,
-      "latency_ms": 448
+      "latency_ms": 407
     },
     {
       "set": "test",
@@ -235,13 +237,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT product_id, AVG(rating) as avg_rating FROM reviews GROUP BY product_id",
-      "generated": "SELECT product_id, AVG(rating) AS avg_rating FROM reviews GROUP BY product_id LIMIT 10000",
+      "ground_truth": "SELECT product_id, AVG(CAST(rating AS FLOAT)) AS avg_rating FROM reviews GROUP BY product_id",
+      "generated": "SELECT TOP 10000 product_id, AVG(CAST(rating AS FLOAT)) AS avg_rating FROM reviews GROUP BY product_id",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 200,
       "gen_rows": 200,
-      "latency_ms": 467
+      "latency_ms": 395
     },
     {
       "set": "test",
@@ -254,13 +256,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT c.name, SUM(o.total_amount) as spent FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC LIMIT 5",
-      "generated": "SELECT c.name, SUM(o.total_amount) AS spent FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC LIMIT 5",
+      "ground_truth": "SELECT TOP 5 c.name, SUM(o.total_amount) AS spent FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC",
+      "generated": "SELECT TOP 5 c.name, SUM(o.total_amount) AS spent FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 5,
       "gen_rows": 5,
-      "latency_ms": 353
+      "latency_ms": 343
     },
     {
       "set": "test",
@@ -273,13 +275,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT COUNT(*) as total_orders FROM orders",
-      "generated": "SELECT COUNT(*) AS total_orders FROM orders LIMIT 10000",
+      "ground_truth": "SELECT COUNT(*) AS total_orders FROM orders",
+      "generated": "SELECT TOP 10000 COUNT(*) AS total_orders FROM orders",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 1,
       "gen_rows": 1,
-      "latency_ms": 376
+      "latency_ms": 257
     },
     {
       "set": "test",
@@ -293,12 +295,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT o.order_id, c.name FROM orders o JOIN customers c ON o.customer_id = c.customer_id",
-      "generated": "SELECT o.order_id, c.name FROM orders AS o JOIN customers AS c ON o.customer_id = c.customer_id LIMIT 10000",
+      "generated": "SELECT TOP 10000 o.order_id, c.name FROM orders AS o JOIN customers AS c ON o.customer_id = c.customer_id",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 5000,
       "gen_rows": 5000,
-      "latency_ms": 451
+      "latency_ms": 284
     },
     {
       "set": "test",
@@ -311,13 +313,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT p.name, SUM(oi.quantity) as total_qty FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name",
-      "generated": "SELECT p.name, SUM(oi.quantity) AS total_qty FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id GROUP BY p.name LIMIT 10000",
+      "ground_truth": "SELECT p.name, SUM(oi.quantity) AS total_qty FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name",
+      "generated": "SELECT TOP 10000 p.name, SUM(oi.quantity) AS total_qty FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id GROUP BY p.name",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 200,
       "gen_rows": 200,
-      "latency_ms": 475
+      "latency_ms": 242
     },
     {
       "set": "test",
@@ -331,12 +333,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT o.* FROM orders o JOIN payments p ON o.order_id = p.order_id WHERE p.payment_method = 'paypal'",
-      "generated": "SELECT o.* FROM orders AS o JOIN payments AS p ON o.order_id = p.order_id WHERE p.payment_method = 'paypal' LIMIT 10000",
+      "generated": "SELECT TOP 10000 o.* FROM orders AS o JOIN payments AS p ON o.order_id = p.order_id WHERE p.payment_method = 'paypal'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 1206,
       "gen_rows": 1206,
-      "latency_ms": 571
+      "latency_ms": 241
     },
     {
       "set": "test",
@@ -350,12 +352,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT DISTINCT c.name FROM customers c JOIN orders o ON c.customer_id = o.customer_id JOIN order_items oi ON o.order_id = oi.order_id JOIN products p ON oi.product_id = p.product_id WHERE p.category = 'Electronics'",
-      "generated": "SELECT DISTINCT c.name FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id JOIN order_items AS oi ON o.order_id = oi.order_id JOIN products AS p ON oi.product_id = p.product_id WHERE p.category = 'Electronics' LIMIT 10000",
+      "generated": "SELECT DISTINCT TOP 10000 c.name FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id JOIN order_items AS oi ON o.order_id = oi.order_id JOIN products AS p ON oi.product_id = p.product_id WHERE p.category = 'Electronics'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 287,
       "gen_rows": 287,
-      "latency_ms": 468
+      "latency_ms": 272
     },
     {
       "set": "test",
@@ -368,13 +370,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT * FROM orders WHERE order_date >= date('now', '-30 days')",
-      "generated": "SELECT * FROM orders WHERE order_date >= DATE('now', '-30 days') LIMIT 10000",
+      "ground_truth": "SELECT * FROM orders WHERE order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
+      "generated": "SELECT TOP 10000 * FROM orders WHERE order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
       "execution_match": true,
       "exact_match": true,
-      "gt_rows": 458,
-      "gen_rows": 458,
-      "latency_ms": 453
+      "gt_rows": 466,
+      "gen_rows": 466,
+      "latency_ms": 244
     },
     {
       "set": "test",
@@ -387,13 +389,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT * FROM customers WHERE signup_date >= date('now', '-1 year')",
-      "generated": "SELECT * FROM customers WHERE signup_date >= DATE('now', '-1 year') LIMIT 10000",
+      "ground_truth": "SELECT * FROM customers WHERE signup_date >= DATEADD(YEAR, -1, CAST(GETDATE() AS DATE))",
+      "generated": "SELECT TOP 10000 * FROM customers WHERE signup_date >= DATEADD(YEAR, -1, CAST(GETDATE() AS DATE))",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 470,
       "gen_rows": 470,
-      "latency_ms": 412
+      "latency_ms": 232
     },
     {
       "set": "test",
@@ -406,13 +408,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT p.name, SUM(oi.quantity * oi.unit_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id WHERE o.order_date >= date('now', '-3 months') GROUP BY p.name ORDER BY revenue DESC LIMIT 10",
-      "generated": "SELECT p.name, SUM(oi.quantity * oi.unit_price) AS revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id JOIN orders AS o ON oi.order_id = o.order_id WHERE o.order_date >= DATE('now', '-3 months') GROUP BY p.name ORDER BY revenue DESC LIMIT 10",
+      "ground_truth": "SELECT TOP 10 p.name, SUM(oi.quantity * oi.unit_price) AS revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id WHERE o.order_date >= DATEADD(MONTH, -3, CAST(GETDATE() AS DATE)) GROUP BY p.name ORDER BY revenue DESC",
+      "generated": "SELECT TOP 10 p.name, SUM(oi.quantity * oi.unit_price) AS revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id JOIN orders AS o ON oi.order_id = o.order_id WHERE o.order_date >= DATEADD(MONTH, -3, CAST(GETDATE() AS DATE)) GROUP BY p.name ORDER BY revenue DESC",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 10,
       "gen_rows": 10,
-      "latency_ms": 380
+      "latency_ms": 247
     },
     {
       "set": "test",
@@ -425,13 +427,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT * FROM payments WHERE payment_date >= date('now', '-7 days')",
-      "generated": "SELECT * FROM payments WHERE payment_date >= DATE('now', '-7 days') LIMIT 10000",
+      "ground_truth": "SELECT * FROM payments WHERE payment_date >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))",
+      "generated": "SELECT TOP 10000 * FROM payments WHERE payment_date >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))",
       "execution_match": true,
       "exact_match": true,
-      "gt_rows": 98,
-      "gen_rows": 98,
-      "latency_ms": 388
+      "gt_rows": 105,
+      "gen_rows": 105,
+      "latency_ms": 248
     },
     {
       "set": "test",
@@ -444,13 +446,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT strftime('%Y-%m', order_date) as month, SUM(total_amount) as revenue FROM orders GROUP BY month ORDER BY month",
-      "generated": "SELECT STRFTIME('%Y-%m', order_date) AS month, SUM(total_amount) AS revenue FROM orders GROUP BY month ORDER BY month LIMIT 10000",
+      "ground_truth": "SELECT FORMAT(order_date, 'yyyy-MM') AS month, SUM(total_amount) AS revenue FROM orders GROUP BY FORMAT(order_date, 'yyyy-MM') ORDER BY month",
+      "generated": "SELECT TOP 10000 FORMAT(order_date, 'yyyy-MM') AS month, SUM(total_amount) AS revenue FROM orders GROUP BY FORMAT(order_date, 'yyyy-MM') ORDER BY month",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 13,
       "gen_rows": 13,
-      "latency_ms": 371
+      "latency_ms": 266
     },
     {
       "set": "test",
@@ -463,13 +465,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT SUM(amount) as collected FROM payments WHERE status = 'success'",
-      "generated": "SELECT SUM(amount) AS collected FROM payments WHERE status = 'success' LIMIT 10000",
+      "ground_truth": "SELECT SUM(amount) AS collected FROM payments WHERE status = 'success'",
+      "generated": "SELECT TOP 10000 SUM(amount) AS collected FROM payments WHERE status = 'success'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 1,
       "gen_rows": 1,
-      "latency_ms": 364
+      "latency_ms": 402
     },
     {
       "set": "test",
@@ -482,13 +484,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT c.name, COUNT(o.order_id) as order_count FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name",
-      "generated": "SELECT c.name, COUNT(o.order_id) AS order_count FROM customers AS c LEFT JOIN orders AS o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name LIMIT 10000",
+      "ground_truth": "SELECT c.name, COUNT(o.order_id) AS order_count FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name",
+      "generated": "SELECT TOP 10000 c.name, COUNT(o.order_id) AS order_count FROM customers AS c LEFT JOIN orders AS o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 77,
       "gen_rows": 77,
-      "latency_ms": 433
+      "latency_ms": 341
     },
     {
       "set": "test",
@@ -502,12 +504,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT * FROM products WHERE stock_quantity < 10",
-      "generated": "SELECT * FROM products WHERE stock_quantity < 10 LIMIT 10000",
+      "generated": "SELECT TOP 10000 * FROM products WHERE stock_quantity < 10",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 1,
       "gen_rows": 1,
-      "latency_ms": 345
+      "latency_ms": 267
     },
     {
       "set": "test",
@@ -520,13 +522,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= date('now', '-60 days')",
-      "generated": "SELECT order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= DATE('now', '-60 days') LIMIT 10000",
+      "ground_truth": "SELECT order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= DATEADD(DAY, -60, CAST(GETDATE() AS DATE))",
+      "generated": "SELECT TOP 10000 order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= DATEADD(DAY, -60, CAST(GETDATE() AS DATE))",
       "execution_match": true,
       "exact_match": true,
-      "gt_rows": 272,
-      "gen_rows": 272,
-      "latency_ms": 377
+      "gt_rows": 277,
+      "gen_rows": 277,
+      "latency_ms": 311
     },
     {
       "set": "test",
@@ -539,13 +541,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT c.city, AVG(o.total_amount) as avg_value FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city",
-      "generated": "SELECT c.city, AVG(o.total_amount) AS avg_value FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id GROUP BY c.city LIMIT 10000",
+      "ground_truth": "SELECT c.city, AVG(o.total_amount) AS avg_value FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city",
+      "generated": "SELECT TOP 10000 c.city, AVG(o.total_amount) AS avg_value FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id GROUP BY c.city",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 12,
       "gen_rows": 12,
-      "latency_ms": 366
+      "latency_ms": 259
     },
     {
       "set": "test",
@@ -558,13 +560,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT product_id, COUNT(*) as review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC LIMIT 3",
-      "generated": "SELECT product_id, COUNT(*) AS review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC LIMIT 3",
+      "ground_truth": "SELECT TOP 3 product_id, COUNT(*) AS review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC, product_id",
+      "generated": "SELECT TOP 3 product_id, COUNT(*) AS review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC, product_id",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 3,
       "gen_rows": 3,
-      "latency_ms": 357
+      "latency_ms": 247
     },
     {
       "set": "test",
@@ -577,13 +579,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT DISTINCT c.email, c.city FROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_date >= date('now', '-30 days')",
-      "generated": "SELECT DISTINCT c.email, c.city FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id WHERE o.order_date >= DATE('now', '-30 days') LIMIT 10000",
+      "ground_truth": "SELECT DISTINCT c.email, c.city FROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
+      "generated": "SELECT DISTINCT TOP 10000 c.email, c.city FROM customers AS c JOIN orders AS o ON c.customer_id = o.customer_id WHERE o.order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
       "execution_match": true,
       "exact_match": true,
-      "gt_rows": 369,
-      "gen_rows": 369,
-      "latency_ms": 350
+      "gt_rows": 371,
+      "gen_rows": 371,
+      "latency_ms": 283
     },
     {
       "set": "test",
@@ -596,13 +598,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT payment_method, COUNT(*) FROM payments WHERE status = 'success' GROUP BY payment_method",
-      "generated": "SELECT payment_method, COUNT(*) FROM payments WHERE status = 'success' GROUP BY payment_method LIMIT 10000",
+      "ground_truth": "SELECT payment_method, COUNT(*) AS payment_count FROM payments WHERE status = 'success' GROUP BY payment_method",
+      "generated": "SELECT TOP 10000 payment_method, COUNT(*) AS payment_count FROM payments WHERE status = 'success' GROUP BY payment_method",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 4,
       "gen_rows": 4,
-      "latency_ms": 347
+      "latency_ms": 272
     }
   ],
   "paraphrase_set": {
@@ -719,7 +721,7 @@
       "error": 17,
       "success": 8
     },
-    "avg_latency_ms": 335.3
+    "avg_latency_ms": 263.8
   },
   "paraphrase_results": [
     {
@@ -734,12 +736,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT * FROM customers WHERE city = 'Mumbai'",
-      "generated": "SELECT * FROM customers WHERE city = 'Mumbai' LIMIT 10000",
+      "generated": "SELECT TOP 10000 * FROM customers WHERE city = 'Mumbai'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 76,
       "gen_rows": 76,
-      "latency_ms": 365
+      "latency_ms": 549
     },
     {
       "set": "paraphrase",
@@ -753,12 +755,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT * FROM products WHERE category = 'Electronics'",
-      "generated": "SELECT * FROM products WHERE category = 'Electronics' LIMIT 10000",
+      "generated": "SELECT TOP 10000 * FROM products WHERE category = 'Electronics'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 36,
       "gen_rows": 36,
-      "latency_ms": 369
+      "latency_ms": 505
     },
     {
       "set": "paraphrase",
@@ -772,12 +774,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT * FROM orders WHERE status = 'pending'",
-      "generated": "SELECT * FROM orders WHERE status = 'pending' LIMIT 10000",
+      "generated": "SELECT TOP 10000 * FROM orders WHERE status = 'pending'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 1644,
       "gen_rows": 1644,
-      "latency_ms": 377
+      "latency_ms": 278
     },
     {
       "set": "paraphrase",
@@ -790,13 +792,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT status, COUNT(*) FROM orders GROUP BY status",
+      "ground_truth": "SELECT status, COUNT(*) AS order_count FROM orders GROUP BY status",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 3,
       "gen_rows": 0,
-      "latency_ms": 338
+      "latency_ms": 248
     },
     {
       "set": "paraphrase",
@@ -809,13 +811,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT p.category, SUM(oi.quantity * oi.unit_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category",
-      "generated": "SELECT p.category, SUM(oi.quantity * oi.unit_price) AS revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id GROUP BY p.category LIMIT 10000",
+      "ground_truth": "SELECT p.category, SUM(oi.quantity * oi.unit_price) AS revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category",
+      "generated": "SELECT TOP 10000 p.category, SUM(oi.quantity * oi.unit_price) AS revenue FROM products AS p JOIN order_items AS oi ON p.product_id = oi.product_id GROUP BY p.category",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 5,
       "gen_rows": 5,
-      "latency_ms": 364
+      "latency_ms": 305
     },
     {
       "set": "paraphrase",
@@ -828,13 +830,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT product_id, AVG(rating) as avg_rating FROM reviews GROUP BY product_id",
-      "generated": "SELECT product_id, AVG(rating) AS avg_rating FROM reviews GROUP BY product_id LIMIT 10000",
+      "ground_truth": "SELECT product_id, AVG(CAST(rating AS FLOAT)) AS avg_rating FROM reviews GROUP BY product_id",
+      "generated": "SELECT TOP 10000 product_id, AVG(CAST(rating AS FLOAT)) AS avg_rating FROM reviews GROUP BY product_id",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 200,
       "gen_rows": 200,
-      "latency_ms": 342
+      "latency_ms": 237
     },
     {
       "set": "paraphrase",
@@ -847,13 +849,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT c.name, SUM(o.total_amount) as spent FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC LIMIT 5",
+      "ground_truth": "SELECT TOP 5 c.name, SUM(o.total_amount) AS spent FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.name ORDER BY spent DESC",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 5,
       "gen_rows": 0,
-      "latency_ms": 311
+      "latency_ms": 228
     },
     {
       "set": "paraphrase",
@@ -866,13 +868,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT COUNT(*) as total_orders FROM orders",
+      "ground_truth": "SELECT COUNT(*) AS total_orders FROM orders",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 1,
       "gen_rows": 0,
-      "latency_ms": 323
+      "latency_ms": 227
     },
     {
       "set": "paraphrase",
@@ -891,7 +893,7 @@
       "exact_match": false,
       "gt_rows": 5000,
       "gen_rows": 0,
-      "latency_ms": 335
+      "latency_ms": 226
     },
     {
       "set": "paraphrase",
@@ -904,13 +906,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT p.name, SUM(oi.quantity) as total_qty FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name",
+      "ground_truth": "SELECT p.name, SUM(oi.quantity) AS total_qty FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.name",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 200,
       "gen_rows": 0,
-      "latency_ms": 312
+      "latency_ms": 237
     },
     {
       "set": "paraphrase",
@@ -924,12 +926,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT o.* FROM orders o JOIN payments p ON o.order_id = p.order_id WHERE p.payment_method = 'paypal'",
-      "generated": "SELECT o.* FROM orders AS o JOIN payments AS p ON o.order_id = p.order_id WHERE p.payment_method = 'paypal' LIMIT 10000",
+      "generated": "SELECT TOP 10000 o.* FROM orders AS o JOIN payments AS p ON o.order_id = p.order_id WHERE p.payment_method = 'paypal'",
       "execution_match": true,
       "exact_match": true,
       "gt_rows": 1206,
       "gen_rows": 1206,
-      "latency_ms": 344
+      "latency_ms": 241
     },
     {
       "set": "paraphrase",
@@ -943,12 +945,12 @@
       "error": null,
       "self_healed": false,
       "ground_truth": "SELECT DISTINCT c.name FROM customers c JOIN orders o ON c.customer_id = o.customer_id JOIN order_items oi ON o.order_id = oi.order_id JOIN products p ON oi.product_id = p.product_id WHERE p.category = 'Electronics'",
-      "generated": "SELECT * FROM products WHERE category = 'Electronics' LIMIT 10000",
+      "generated": "SELECT TOP 10000 * FROM products WHERE category = 'Electronics'",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 287,
       "gen_rows": 36,
-      "latency_ms": 346
+      "latency_ms": 237
     },
     {
       "set": "paraphrase",
@@ -961,13 +963,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT * FROM orders WHERE order_date >= date('now', '-30 days')",
+      "ground_truth": "SELECT * FROM orders WHERE order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
-      "gt_rows": 458,
+      "gt_rows": 466,
       "gen_rows": 0,
-      "latency_ms": 327
+      "latency_ms": 241
     },
     {
       "set": "paraphrase",
@@ -980,13 +982,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT * FROM customers WHERE signup_date >= date('now', '-1 year')",
+      "ground_truth": "SELECT * FROM customers WHERE signup_date >= DATEADD(YEAR, -1, CAST(GETDATE() AS DATE))",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 470,
       "gen_rows": 0,
-      "latency_ms": 315
+      "latency_ms": 232
     },
     {
       "set": "paraphrase",
@@ -999,13 +1001,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT p.name, SUM(oi.quantity * oi.unit_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id WHERE o.order_date >= date('now', '-3 months') GROUP BY p.name ORDER BY revenue DESC LIMIT 10",
+      "ground_truth": "SELECT TOP 10 p.name, SUM(oi.quantity * oi.unit_price) AS revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id WHERE o.order_date >= DATEADD(MONTH, -3, CAST(GETDATE() AS DATE)) GROUP BY p.name ORDER BY revenue DESC",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 10,
       "gen_rows": 0,
-      "latency_ms": 356
+      "latency_ms": 239
     },
     {
       "set": "paraphrase",
@@ -1018,13 +1020,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT * FROM payments WHERE payment_date >= date('now', '-7 days')",
+      "ground_truth": "SELECT * FROM payments WHERE payment_date >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
-      "gt_rows": 98,
+      "gt_rows": 105,
       "gen_rows": 0,
-      "latency_ms": 324
+      "latency_ms": 262
     },
     {
       "set": "paraphrase",
@@ -1037,13 +1039,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT strftime('%Y-%m', order_date) as month, SUM(total_amount) as revenue FROM orders GROUP BY month ORDER BY month",
+      "ground_truth": "SELECT FORMAT(order_date, 'yyyy-MM') AS month, SUM(total_amount) AS revenue FROM orders GROUP BY FORMAT(order_date, 'yyyy-MM') ORDER BY month",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 13,
       "gen_rows": 0,
-      "latency_ms": 303
+      "latency_ms": 231
     },
     {
       "set": "paraphrase",
@@ -1056,13 +1058,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT SUM(amount) as collected FROM payments WHERE status = 'success'",
+      "ground_truth": "SELECT SUM(amount) AS collected FROM payments WHERE status = 'success'",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 1,
       "gen_rows": 0,
-      "latency_ms": 297
+      "latency_ms": 223
     },
     {
       "set": "paraphrase",
@@ -1075,13 +1077,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT c.name, COUNT(o.order_id) as order_count FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name",
+      "ground_truth": "SELECT c.name, COUNT(o.order_id) AS order_count FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id WHERE c.city = 'Bangalore' GROUP BY c.name",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 77,
       "gen_rows": 0,
-      "latency_ms": 305
+      "latency_ms": 242
     },
     {
       "set": "paraphrase",
@@ -1100,7 +1102,7 @@
       "exact_match": false,
       "gt_rows": 1,
       "gen_rows": 0,
-      "latency_ms": 310
+      "latency_ms": 226
     },
     {
       "set": "paraphrase",
@@ -1113,13 +1115,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= date('now', '-60 days')",
+      "ground_truth": "SELECT order_id, total_amount FROM orders WHERE status = 'completed' AND order_date >= DATEADD(DAY, -60, CAST(GETDATE() AS DATE))",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
-      "gt_rows": 272,
+      "gt_rows": 277,
       "gen_rows": 0,
-      "latency_ms": 318
+      "latency_ms": 240
     },
     {
       "set": "paraphrase",
@@ -1132,13 +1134,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT c.city, AVG(o.total_amount) as avg_value FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city",
+      "ground_truth": "SELECT c.city, AVG(o.total_amount) AS avg_value FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 12,
       "gen_rows": 0,
-      "latency_ms": 316
+      "latency_ms": 222
     },
     {
       "set": "paraphrase",
@@ -1151,13 +1153,13 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT product_id, COUNT(*) as review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC LIMIT 3",
+      "ground_truth": "SELECT TOP 3 product_id, COUNT(*) AS review_count FROM reviews GROUP BY product_id ORDER BY review_count DESC, product_id",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 3,
       "gen_rows": 0,
-      "latency_ms": 344
+      "latency_ms": 234
     },
     {
       "set": "paraphrase",
@@ -1170,13 +1172,13 @@
       "failed_stage": null,
       "error": null,
       "self_healed": false,
-      "ground_truth": "SELECT DISTINCT c.email, c.city FROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_date >= date('now', '-30 days')",
-      "generated": "SELECT * FROM orders WHERE order_date >= DATE('now', '-30 days') LIMIT 10000",
+      "ground_truth": "SELECT DISTINCT c.email, c.city FROM customers c JOIN orders o ON c.customer_id = o.customer_id WHERE o.order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
+      "generated": "SELECT TOP 10000 * FROM orders WHERE order_date >= DATEADD(DAY, -30, CAST(GETDATE() AS DATE))",
       "execution_match": false,
       "exact_match": false,
-      "gt_rows": 369,
-      "gen_rows": 458,
-      "latency_ms": 410
+      "gt_rows": 371,
+      "gen_rows": 466,
+      "latency_ms": 256
     },
     {
       "set": "paraphrase",
@@ -1189,22 +1191,22 @@
       "failed_stage": "generator",
       "error": "Could not generate SQL for this question",
       "self_healed": false,
-      "ground_truth": "SELECT payment_method, COUNT(*) FROM payments WHERE status = 'success' GROUP BY payment_method",
+      "ground_truth": "SELECT payment_method, COUNT(*) AS payment_count FROM payments WHERE status = 'success' GROUP BY payment_method",
       "generated": "",
       "execution_match": false,
       "exact_match": false,
       "gt_rows": 4,
       "gen_rows": 0,
-      "latency_ms": 332
+      "latency_ms": 229
     }
   ],
   "guardrails": {
     "compliance": {
-      "correct": 89,
-      "total": 89,
+      "correct": 156,
+      "total": 156,
       "rate": 1.0,
       "ci95": [
-        0.9586,
+        0.976,
         1.0
       ]
     },
@@ -1541,8 +1543,8 @@
       ]
     },
     "sql_attacks": {
-      "total": 49,
-      "blocked_by_validator": 49,
+      "total": 116,
+      "blocked_by_validator": 116,
       "failures": [],
       "details": [
         {
@@ -1583,7 +1585,7 @@
         {
           "attack": "REPLACE INTO customers (customer_id, name) VALUES (1, 'x')",
           "validator_blocked": true,
-          "validator_error": "Only SELECT statements are allowed",
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 12.",
           "destructive": true,
           "executor_denied": true
         },
@@ -1716,21 +1718,21 @@
         {
           "attack": "ATTACH DATABASE 'evil.db' AS e",
           "validator_blocked": true,
-          "validator_error": "Only SELECT statements are allowed",
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 25.",
           "destructive": true,
           "executor_denied": true
         },
         {
           "attack": "ATTACH DATABASE ':memory:' AS m",
           "validator_blocked": true,
-          "validator_error": "Only SELECT statements are allowed",
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 26.",
           "destructive": true,
           "executor_denied": true
         },
         {
           "attack": "DETACH DATABASE m",
           "validator_blocked": true,
-          "validator_error": "Only SELECT statements are allowed",
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 17.",
           "destructive": true,
           "executor_denied": true
         },
@@ -1800,7 +1802,7 @@
         {
           "attack": "SELECT * FROM pragma_table_info('orders')",
           "validator_blocked": true,
-          "validator_error": "Function pragma_table_info is not allowed",
+          "validator_error": "Table-valued functions are not allowed",
           "destructive": false,
           "executor_denied": true
         },
@@ -1814,14 +1816,14 @@
         {
           "attack": "SELECT * FROM sqlite_master",
           "validator_blocked": true,
-          "validator_error": "Table 'sqlite_master' is not accessible",
+          "validator_error": "Unknown table 'sqlite_master'",
           "destructive": false,
           "executor_denied": false
         },
         {
           "attack": "SELECT name FROM sqlite_schema",
           "validator_blocked": true,
-          "validator_error": "Table 'sqlite_schema' is not accessible",
+          "validator_error": "Unknown table 'sqlite_schema'",
           "destructive": false,
           "executor_denied": false
         },
@@ -1844,21 +1846,21 @@
           "validator_blocked": true,
           "validator_error": "Table 'query_logs' is not accessible",
           "destructive": false,
-          "executor_denied": false
+          "executor_denied": true
         },
         {
           "attack": "SELECT * FROM few_shot_examples",
           "validator_blocked": true,
           "validator_error": "Table 'few_shot_examples' is not accessible",
           "destructive": false,
-          "executor_denied": false
+          "executor_denied": true
         },
         {
           "attack": "SELECT * FROM schema_descriptions",
           "validator_blocked": true,
           "validator_error": "Table 'schema_descriptions' is not accessible",
           "destructive": false,
-          "executor_denied": false
+          "executor_denied": true
         },
         {
           "attack": "SELECT * FROM does_not_exist",
@@ -1887,30 +1889,500 @@
           "validator_error": "Unknown table alias 'x'",
           "destructive": false,
           "executor_denied": true
+        },
+        {
+          "attack": "EXEC sp_who",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "EXEC sp_configure 'show advanced options', 1",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "EXEC xp_cmdshell 'dir'",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "EXECUTE ('DROP TABLE orders')",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "EXEC sp_executesql N'DROP TABLE orders'",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * INTO copy_of_orders FROM orders",
+          "validator_blocked": true,
+          "validator_error": "SELECT INTO is not allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * INTO #t FROM customers",
+          "validator_blocked": true,
+          "validator_error": "SELECT INTO is not allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT order_id INTO dbo.stolen FROM orders",
+          "validator_blocked": true,
+          "validator_error": "SELECT INTO is not allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "WITH d AS (SELECT * FROM orders) DELETE FROM d",
+          "validator_blocked": true,
+          "validator_error": "DELETE statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "WITH u AS (SELECT * FROM orders) UPDATE u SET status = 'x'",
+          "validator_blocked": true,
+          "validator_error": "UPDATE statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "DELETE TOP (10) FROM orders",
+          "validator_blocked": true,
+          "validator_error": "DELETE statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "UPDATE orders SET status = 'x' OUTPUT inserted.*",
+          "validator_blocked": true,
+          "validator_error": "UPDATE statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "INSERT INTO customers (customer_id, name) OUTPUT inserted.* VALUES (9999, 'x')",
+          "validator_blocked": true,
+          "validator_error": "INSERT statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "MERGE orders AS t USING customers AS s ON t.customer_id = s.customer_id WHEN MATCHED THEN DELETE;",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "BULK INSERT orders FROM 'c:\\data.csv'",
+          "validator_blocked": true,
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 11.",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "DECLARE @x INT = 1",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "DECLARE @sql NVARCHAR(100) = 'DROP TABLE orders'; EXEC(@sql)",
+          "validator_blocked": true,
+          "validator_error": "Exactly one SQL statement is allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SET NOCOUNT ON",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SET IDENTITY_INSERT orders ON",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "USE master",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "WAITFOR DELAY '00:00:30'",
+          "validator_blocked": true,
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 24.",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "GRANT SELECT ON orders TO public",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "REVOKE SELECT ON orders FROM public",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "DENY SELECT ON orders TO public",
+          "validator_blocked": true,
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 11.",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "BACKUP DATABASE x TO DISK = 'c:\\x.bak'",
+          "validator_blocked": true,
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 17.",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "DBCC CHECKDB",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SHUTDOWN",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "KILL 55",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT @@version",
+          "validator_blocked": true,
+          "validator_error": "Variables (@name) are not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT @@servername",
+          "validator_blocked": true,
+          "validator_error": "Variables (@name) are not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT DB_NAME()",
+          "validator_blocked": true,
+          "validator_error": "Function DB_NAME is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT SUSER_SNAME()",
+          "validator_blocked": true,
+          "validator_error": "Function SUSER_SNAME is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT USER_NAME()",
+          "validator_blocked": true,
+          "validator_error": "Function USER_NAME is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT HOST_NAME()",
+          "validator_blocked": true,
+          "validator_error": "Function HOST_NAME is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT SERVERPROPERTY('ProductVersion')",
+          "validator_blocked": true,
+          "validator_error": "Function SERVERPROPERTY is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM OPENROWSET('SQLNCLI', 'Server=x;Trusted_Connection=yes;', 'SELECT 1')",
+          "validator_blocked": true,
+          "validator_error": "Function OPENROWSET is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM OPENQUERY(linked, 'SELECT 1')",
+          "validator_blocked": true,
+          "validator_error": "Function OPENQUERY is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM OPENDATASOURCE('SQLNCLI', 'Data Source=x').db.dbo.t",
+          "validator_blocked": true,
+          "validator_error": "Function OPENDATASOURCE is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM sys.tables",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'sys.tables' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM sys.sql_logins",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'sys.sql_logins' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM sys.database_principals",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'sys.database_principals' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM INFORMATION_SCHEMA.TABLES",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'INFORMATION_SCHEMA.TABLES' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM INFORMATION_SCHEMA.COLUMNS",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'INFORMATION_SCHEMA.COLUMNS' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM master..sysdatabases",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'master..sysdatabases' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM master.sys.databases",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'master.sys.databases' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM otherdb.dbo.orders",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'otherdb.dbo.orders' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM #temp",
+          "validator_blocked": true,
+          "validator_error": "Unknown table 'temp'",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM ##global_temp",
+          "validator_blocked": true,
+          "validator_error": "Unknown table 'global_temp'",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM dbo.query_logs",
+          "validator_blocked": true,
+          "validator_error": "Table 'query_logs' is not accessible",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM dbo.few_shot_examples",
+          "validator_blocked": true,
+          "validator_error": "Table 'few_shot_examples' is not accessible",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM dbo.schema_descriptions",
+          "validator_blocked": true,
+          "validator_error": "Table 'schema_descriptions' is not accessible",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM guest.orders",
+          "validator_blocked": true,
+          "validator_error": "Schema-qualified table 'guest.orders' is not allowed",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT 1 GO DROP TABLE orders",
+          "validator_blocked": true,
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 16.",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT 1; EXEC sp_who",
+          "validator_blocked": true,
+          "validator_error": "Exactly one SQL statement is allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM orders; WAITFOR DELAY '00:00:05'",
+          "validator_blocked": true,
+          "validator_error": "Syntax error: Invalid expression / Unexpected token. Line 1, Col: 46.",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM orders WHERE status = 'x'; DROP TABLE orders --'",
+          "validator_blocked": true,
+          "validator_error": "Exactly one SQL statement is allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "CREATE LOGIN evil WITH PASSWORD = 'x'",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "CREATE USER evil FOR LOGIN evil",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "ALTER ROLE db_owner ADD MEMBER evil",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "CREATE PROCEDURE p AS DROP TABLE orders",
+          "validator_blocked": true,
+          "validator_error": "CREATE statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "CREATE TRIGGER t ON orders AFTER INSERT AS DROP TABLE customers",
+          "validator_blocked": true,
+          "validator_error": "Only SELECT statements are allowed",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "DROP DATABASE querymind",
+          "validator_blocked": true,
+          "validator_error": "DROP statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "TRUNCATE TABLE dbo.orders",
+          "validator_blocked": true,
+          "validator_error": "TRUNCATE statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "ALTER TABLE orders DROP COLUMN status",
+          "validator_blocked": true,
+          "validator_error": "ALTER statements are blocked by guardrails",
+          "destructive": true,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT * FROM orders LIMIT 5",
+          "validator_blocked": true,
+          "validator_error": "Incorrect syntax near 'LIMIT'. T-SQL has no LIMIT; use SELECT TOP n (or OFFSET ... FETCH after ORDER BY)",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT strftime('%Y', order_date) FROM orders",
+          "validator_blocked": true,
+          "validator_error": "'strftime' is not a recognized built-in function name. use FORMAT(col, 'yyyy-MM') or YEAR()/MONTH()/DAY()",
+          "destructive": false,
+          "executor_denied": true
+        },
+        {
+          "attack": "SELECT FORMAT(order_date, 'yyyy-MM') AS m FROM orders GROUP BY m",
+          "validator_blocked": true,
+          "validator_error": "Invalid column name 'm'. T-SQL does not allow a select alias in WHERE, GROUP BY or HAVING; repeat the expression instead",
+          "destructive": false,
+          "executor_denied": true
         }
       ]
     },
     "executor_only": {
-      "destructive_total": 36,
-      "denied": 36,
-      "readonly_probes_allowed": 6
+      "destructive_total": 74,
+      "denied": 74,
+      "readonly_probes_allowed": 3
     },
     "resource_attacks": {
+      "skipped": false,
       "total": 2,
       "contained": 2,
       "details": [
         {
-          "attack": "WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x + 1 FROM c) SELECT COUNT(*) FROM c",
+          "attack": "WITH c AS (SELECT 1 AS x UNION ALL SELECT x + 1 FROM c) SELECT COUNT(*) AS n FROM c OPTION (MAXRECURSION 0)",
           "status": "error",
           "error": "Query exceeded the 5s time limit",
-          "latency_ms": 5342,
+          "latency_ms": 5317,
           "contained": true
         },
         {
-          "attack": "SELECT COUNT(*) FROM order_items a, order_items b, order_items c, order_items d",
+          "attack": "SELECT COUNT(*) AS n FROM order_items a, order_items b, order_items c, order_items d",
           "status": "error",
           "error": "Query exceeded the 5s time limit",
-          "latency_ms": 5249,
+          "latency_ms": 5280,
           "contained": true
         }
       ]
@@ -1922,7 +2394,7 @@
       "valid_sql_rejected": []
     },
     "database_unchanged": true,
-    "database_sha256": "a07db2f4d673e933"
+    "database_fingerprint": "d4aa26ef735c896e"
   },
   "score": {
     "points": 60.0,
