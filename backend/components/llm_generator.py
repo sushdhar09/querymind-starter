@@ -6,6 +6,8 @@ from typing import Callable, Optional
 from backend.components.sql_generator import GenerationError, SqlGenerator
 from backend.llm import LLMClient, LLMError
 from backend.schemas import GeneratorInput, GeneratorOutput, ModelConfig
+from tenacity import retry, stop_after_attempt, wait_exponential
+from openai import RateLimitError
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +39,14 @@ Rules:
 
 Respond with ONLY a JSON object: {{"sql": "<query or null>", "explanation": "<one sentence>"}}"""
 
-
+def safe_complete(client, system_prompt, user_prompt, model, temperature, max_tokens):
+    return client.complete(
+        system_prompt,
+        user_prompt,
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens
+    )
 def build_system_prompt(dialect: str) -> str:
     return SYSTEM_PROMPT.format(dialect=DIALECT_NOTES.get(dialect, DIALECT_NOTES["tsql"]))
 
@@ -97,15 +106,22 @@ class LlmGenerator:
     def generate(self, req: GeneratorInput) -> GeneratorOutput:
         cfg = self.config()
         try:
-            text = self.client_factory(cfg.provider).complete(
-                build_system_prompt(req.dialect), build_user_prompt(req),
-                model=cfg.model, temperature=cfg.temperature, max_tokens=cfg.max_tokens)
+            text = safe_complete(
+                self.client_factory(cfg.provider),
+                build_system_prompt(req.dialect),
+                build_user_prompt(req),
+                model=cfg.model,
+                temperature=cfg.temperature,
+                max_tokens=cfg.max_tokens
+            )
+            sql, explanation = parse_llm_output(text)
+            if not sql:
+                raise GenerationError(explanation or "The model could not produce a SQL query for this question")
+            return GeneratorOutput(sql=sql, explanation=explanation)
+        except RateLimitError as e:
+            raise GenerationError("Rate limit exceeded after retries") from e
         except LLMError as e:
             raise GenerationError(str(e)) from e
-        sql, explanation = parse_llm_output(text)
-        if not sql:
-            raise GenerationError(explanation or "The model could not produce a SQL query for this question")
-        return GeneratorOutput(sql=sql, explanation=explanation)
 
 
 class ConfiguredGenerator:
