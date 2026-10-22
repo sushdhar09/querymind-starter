@@ -8,9 +8,9 @@ from typing import Optional
 
 import chromadb
 
-from backend.config import CHROMA_PATH
-from backend.schemas import Example, RetrieverOutput
-from backend.store import AppStore
+from config import CHROMA_PATH
+from schemas import Example, RetrieverOutput
+from store import AppStore
 
 log = logging.getLogger(__name__)
 

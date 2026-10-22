@@ -6,10 +6,10 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from backend.config import SCHEMA_CACHE_TTL_S
-from backend.db import AnalyticsDatabase, DatabaseError
-from backend.schemas import INTERNAL_TABLES, Ambiguity, ColumnContext, SchemaColumn, SchemaTable, TableContext
-from backend.store import AppStore
+from config import SCHEMA_CACHE_TTL_S
+from db import AnalyticsDatabase, DatabaseError
+from schemas import INTERNAL_TABLES, Ambiguity, ColumnContext, SchemaColumn, SchemaTable, TableContext
+from store import AppStore
 
 log = logging.getLogger(__name__)
 

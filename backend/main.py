@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request, Respons
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from backend.config import (
+from config import (
     ANTHROPIC_API_KEY,
     CORS_ORIGINS,
     DATA_DIR,
@@ -18,11 +18,11 @@ from backend.config import (
     REQUIRE_READ_ONLY_LOGIN,
     admin_api_key,
 )
-from backend.db import DatabaseError
-from backend.factory import build_app, build_database
-from backend.observability import RequestContextMiddleware, configure_logging, request_id_var
-from backend.pipeline import Pipeline
-from backend.schemas import (
+from db import DatabaseError
+from factory import build_app, build_database
+from observability import RequestContextMiddleware, configure_logging, request_id_var
+from pipeline import Pipeline
+from schemas import (
     ColumnMeta,
     ColumnMetaIn,
     Example,
@@ -38,8 +38,8 @@ from backend.schemas import (
     QueryRequest,
     SchemaTable,
 )
-from backend.security import query_rate_limit, require_admin
-from backend.store import AppStore
+from security import query_rate_limit, require_admin
+from store import AppStore
 
 configure_logging(LOG_FORMAT, LOG_LEVEL)
 log = logging.getLogger(__name__)

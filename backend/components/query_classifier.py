@@ -1,8 +1,8 @@
 import re
 from typing import Optional
 
-from backend.schema_index import SchemaIndex
-from backend.schemas import ClassifierOutput
+from schema_index import SchemaIndex
+from schemas import ClassifierOutput
 
 _VERBS = r"drop|delete|remove|erase|wipe|purge|update|modify|insert|create|truncate|alter|rename|grant|revoke"
 _POLITE = r"(?:(?:please|kindly|can you|could you|would you|i want to|i need to|go ahead and|just)\s+)*"

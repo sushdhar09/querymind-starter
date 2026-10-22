@@ -5,8 +5,8 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
-from backend.config import APP_DB_PATH, LLM_MODEL, LLM_PROVIDER
-from backend.schemas import (
+from config import APP_DB_PATH, LLM_MODEL, LLM_PROVIDER
+from schemas import (
     INTERNAL_TABLES,
     ColumnMeta,
     ColumnMetaIn,

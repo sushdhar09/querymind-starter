@@ -2,8 +2,8 @@ import json
 import logging
 from typing import Callable, Optional
 
-from backend.llm import LLMClient
-from backend.schemas import ExecutorOutput, FormatterOutput, ModelConfig
+from llm import LLMClient
+from schemas import ExecutorOutput, FormatterOutput, ModelConfig
 
 log = logging.getLogger(__name__)
 

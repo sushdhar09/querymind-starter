@@ -3,21 +3,21 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from backend.components.example_retriever import ExampleRetriever
-from backend.components.llm_generator import ConfiguredGenerator, LlmGenerator
-from backend.components.query_classifier import QueryClassifier
-from backend.components.result_formatter import LlmSummarizer, ResultFormatter
-from backend.components.schema_linker import SchemaLinker
-from backend.components.sql_executor import SqlExecutor
-from backend.components.sql_generator import SqlGenerator
-from backend.components.sql_validator import SqlValidator
-from backend.config import ANALYTICS_BACKEND, AZURE_SQL_CONNECTION_STRING
-from backend.db import AnalyticsDatabase, AzureSqlDatabase
-from backend.embeddings import get_embedding_function
-from backend.llm import build_client
-from backend.pipeline import Pipeline
-from backend.schema_index import SchemaIndex
-from backend.store import AppStore
+from components.example_retriever import ExampleRetriever
+from components.llm_generator import ConfiguredGenerator, LlmGenerator
+from components.query_classifier import QueryClassifier
+from components.result_formatter import LlmSummarizer, ResultFormatter
+from components.schema_linker import SchemaLinker
+from components.sql_executor import SqlExecutor
+from components.sql_generator import SqlGenerator
+from components.sql_validator import SqlValidator
+from config import ANALYTICS_BACKEND, AZURE_SQL_CONNECTION_STRING
+from db import AnalyticsDatabase, AzureSqlDatabase
+from embeddings import get_embedding_function
+from llm import build_client
+from pipeline import Pipeline
+from schema_index import SchemaIndex
+from store import AppStore
 
 log = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ def build_database(backend: str = ANALYTICS_BACKEND, connection_string: str = AZ
     if backend == "azure":
         return AzureSqlDatabase(connection_string)
     if backend == "memory":
-        from backend.testing.inmemory_db import InMemoryDatabase
+        from testing.inmemory_db import InMemoryDatabase
         log.warning("ANALYTICS_BACKEND=memory: using the in-memory TEST DOUBLE, not Azure SQL. Not for production.")
         return InMemoryDatabase()
     raise ValueError(f"Unknown ANALYTICS_BACKEND '{backend}' (expected 'azure' or 'memory')")

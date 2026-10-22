@@ -2,7 +2,7 @@ import logging
 import time
 from typing import Optional, Protocol
 
-from backend.schemas import (
+from schemas import (
     ClassifierOutput,
     ExecutorOutput,
     FormatterOutput,

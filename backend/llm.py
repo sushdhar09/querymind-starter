@@ -3,7 +3,7 @@ from typing import Optional, Protocol
 
 import httpx
 
-from backend.config import ANTHROPIC_API_KEY, LLM_TIMEOUT_S, OLLAMA_BASE_URL, OPENAI_API_KEY
+from config import ANTHROPIC_API_KEY, LLM_TIMEOUT_S, OLLAMA_BASE_URL, OPENAI_API_KEY
 
 log = logging.getLogger(__name__)
 

@@ -1,7 +1,7 @@
 from typing import Optional
 
-from backend.schema_index import SchemaIndex
-from backend.schemas import LinkerOutput
+from schema_index import SchemaIndex
+from schemas import LinkerOutput
 
 
 class SchemaLinker:

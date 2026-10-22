@@ -159,7 +159,7 @@ Open http://localhost:3000 (chat and admin) and http://localhost:8000/docs (API)
 
 ## 5. Safety demo (validator and executor)
 
-Run in a Python shell with `ANALYTICS_BACKEND=memory`: `from backend.main import validator`, then `validator.validate(sql)`. These results were measured:
+Run in a Python shell with `ANALYTICS_BACKEND=memory`: `from main import validator`, then `validator.validate(sql)`. These results were measured:
 
 | SQL | Result |
 |---|---|

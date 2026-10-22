@@ -6,7 +6,7 @@ from typing import Optional
 
 from fastapi import Header, HTTPException, Request
 
-from backend.config import admin_api_key, rate_limit_per_min
+from config import admin_api_key, rate_limit_per_min
 
 
 def require_admin(x_api_key: Optional[str] = Header(None), authorization: Optional[str] = Header(None)) -> None:

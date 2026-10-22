@@ -3,9 +3,9 @@ import logging
 import re
 from typing import Callable, Optional
 
-from backend.components.sql_generator import GenerationError, SqlGenerator
-from backend.llm import LLMClient, LLMError
-from backend.schemas import GeneratorInput, GeneratorOutput, ModelConfig
+from components.sql_generator import GenerationError, SqlGenerator
+from llm import LLMClient, LLMError
+from schemas import GeneratorInput, GeneratorOutput, ModelConfig
 from tenacity import retry, stop_after_attempt, wait_exponential
 from openai import RateLimitError
 

@@ -1,10 +1,9 @@
 import time
 from typing import Optional
-
-from backend import tsql_rules
-from backend.config import ABSOLUTE_MAX_ROWS, QUERY_TIMEOUT_S
-from backend.db import AnalyticsDatabase, DatabaseError
-from backend.schemas import ExecutorOutput
+import tsql_rules 
+from config import ABSOLUTE_MAX_ROWS, QUERY_TIMEOUT_S
+from db import AnalyticsDatabase, DatabaseError
+from schemas import ExecutorOutput
 
 
 class SqlExecutor:

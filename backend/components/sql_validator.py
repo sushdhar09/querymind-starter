@@ -5,8 +5,8 @@ import sqlglot
 from sqlglot import exp
 from sqlglot.errors import SqlglotError
 
-from backend import tsql_rules
-from backend.schemas import Guardrails, ValidatorOutput
+import tsql_rules
+from schemas import Guardrails, ValidatorOutput
 
 log = logging.getLogger(__name__)
 

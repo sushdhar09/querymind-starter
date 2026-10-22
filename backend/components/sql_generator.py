@@ -1,6 +1,6 @@
 import logging
 
-from backend.schemas import GeneratorInput, GeneratorOutput
+from schemas import GeneratorInput, GeneratorOutput
 
 log = logging.getLogger(__name__)
 

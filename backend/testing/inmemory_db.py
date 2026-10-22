@@ -16,8 +16,8 @@ import sqlglot
 from sqlglot import exp
 from sqlglot.errors import SqlglotError
 
-from backend import demo_data, tsql_rules
-from backend.db import ColumnInfo, DatabaseError, QueryResult, QueryTimeout, ReadOnlyStatus, SchemaInfo, normalize_value
+import demo_data, tsql_rules
+from db import ColumnInfo, DatabaseError, QueryResult, QueryTimeout, ReadOnlyStatus, SchemaInfo, normalize_value
 
 _DATETIME_TYPES = {getattr(exp.DataType.Type, n) for n in ("DATETIME", "DATETIME2", "SMALLDATETIME", "TIMESTAMP", "TIMESTAMPTZ",
                                                            "TIMESTAMPLTZ", "TIMESTAMPNTZ") if hasattr(exp.DataType.Type, n)}

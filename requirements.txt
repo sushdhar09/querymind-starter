@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+python-dotenv
+sqlglot
+chromadb
+openai
+httpx
+pyodbc>=5.0
