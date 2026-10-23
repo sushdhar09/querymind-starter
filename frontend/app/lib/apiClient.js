@@ -1,4 +1,4 @@
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://querymind-backend.azurewebsites.net'
 const API = `${API_BASE_URL}/api/v1`
 const KEY_STORAGE = 'qm_admin_key'
 
