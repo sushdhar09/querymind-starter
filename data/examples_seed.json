@@ -42,7 +42,7 @@
   {
     "question": "Top 100 products",
     "query_type": "SELECT_SIMPLE",
-    "sql": "SELECT TOP 100 * FROM products"
+    "sql": "SELECT TOP 100 * FROM products ORDER BY product_id"
   },
   {
     "question": "How many customers do we have in each city?",
