@@ -1,10 +1,11 @@
 import logging
 from typing import Optional, Protocol
-
+import os
 import httpx
 
 from config import ANTHROPIC_API_KEY, LLM_TIMEOUT_S, OLLAMA_BASE_URL, OPENAI_API_KEY
-
+GROQ_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
 log = logging.getLogger(__name__)
 
 
@@ -41,7 +42,11 @@ class OpenAIClient:
                 params.pop("temperature", None)
                 resp = client.chat.completions.create(**params)
         except Exception as e:
-            raise LLMError(f"LLM request failed ({type(e).__name__}, status {getattr(e, 'status_code', 'n/a')})") from e
+            # Include response body for debugging
+            body = ""
+            if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                body = e.response.text[:500]
+            raise LLMError(f"LLM request failed ({type(e).__name__}, status {getattr(e, 'status_code', 'n/a')}): {body}") from e
         return resp.choices[0].message.content or ""
 
 
@@ -61,7 +66,7 @@ class AnthropicClient:
             resp.raise_for_status()
             return "".join(b.get("text", "") for b in resp.json().get("content", []) if b.get("type") == "text")
         except httpx.HTTPStatusError as e:
-            detail = e.response.text[:500]  # Show Anthropic's real error
+            detail = e.response.text[:1000]
             raise LLMError(f"LLM request failed (HTTP {e.response.status_code}): {detail}") from e
         except Exception as e:
             raise LLMError(f"LLM request failed ({type(e).__name__})") from e
@@ -77,6 +82,11 @@ def build_client(provider: str) -> LLMClient:
         if not OPENAI_API_KEY:
             raise LLMError("OPENAI_API_KEY is not set")
         client: LLMClient = OpenAIClient(OPENAI_API_KEY)
+    elif provider == "groq":
+        # NEW: Groq provider - FREE, OpenAI-compatible
+        if not GROQ_API_KEY:
+            raise LLMError("GROQ_API_KEY is not set - get free key from https://console.groq.com/keys")
+        client = OpenAIClient(GROQ_API_KEY, base_url=GROQ_BASE_URL)
     elif provider == "anthropic":
         if not ANTHROPIC_API_KEY:
             raise LLMError("ANTHROPIC_API_KEY is not set")
@@ -84,6 +94,6 @@ def build_client(provider: str) -> LLMClient:
     elif provider == "ollama":
         client = OpenAIClient("ollama", base_url=OLLAMA_BASE_URL)
     else:
-        raise LLMError(f"Unsupported LLM provider '{provider}'")
+        raise LLMError(f"Unsupported LLM provider '{provider}' - use openai, anthropic, groq, or ollama")
     _clients[provider] = client
     return client

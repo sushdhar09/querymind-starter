@@ -161,8 +161,8 @@ class ColumnMeta(ColumnMetaIn):
 
 
 class ModelConfig(BaseModel):
-    provider: Literal["mock", "openai", "anthropic", "ollama"] = "mock"
-    model: str = "gpt-4o-mini"
+    provider: Literal["groq", "mock", "openai", "anthropic", "ollama"] = "mock"
+    model: str = "mixtral-8x7b-32768"
     temperature: float = Field(default=0.0, ge=0, le=2)
     max_tokens: int = Field(default=1024, ge=64, le=32000)
     dialect: Dialect = "tsql"
