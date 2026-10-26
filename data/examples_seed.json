@@ -40,6 +40,11 @@
     "sql": "SELECT TOP 10 name, price FROM products ORDER BY price DESC"
   },
   {
+    "question": "Top 100 products",
+    "query_type": "SELECT_SIMPLE",
+    "sql": "SELECT TOP 100 * FROM products"
+  },
+  {
     "question": "How many customers do we have in each city?",
     "query_type": "SELECT_AGGREGATE",
     "sql": "SELECT city, COUNT(*) AS customer_count FROM customers GROUP BY city ORDER BY customer_count DESC"

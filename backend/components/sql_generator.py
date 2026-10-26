@@ -40,6 +40,7 @@ SIGNED_UP_LAST_YEAR = "SELECT * FROM customers WHERE signup_date >= DATEADD(YEAR
 TOP_PRODUCTS_LAST_QUARTER = ("SELECT TOP 10 p.name, SUM(oi.quantity * oi.unit_price) AS revenue FROM products p "
                              "JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id "
                              "WHERE o.order_date >= DATEADD(MONTH, -3, CAST(GETDATE() AS DATE)) GROUP BY p.name ORDER BY revenue DESC")
+TOP_100_PRODUCTS = "SELECT TOP 100 * FROM products"
 PAYMENTS_LAST_7_DAYS = "SELECT * FROM payments WHERE payment_date >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))"
 COMPLETED_LAST_60_DAYS = ("SELECT order_id, total_amount FROM orders WHERE status = 'completed' "
                           "AND order_date >= DATEADD(DAY, -60, CAST(GETDATE() AS DATE))")
@@ -99,6 +100,7 @@ class SqlGenerator:
             "orders in last 30 days": ORDERS_LAST_30_DAYS,
             "signed up last year": SIGNED_UP_LAST_YEAR,
             "top 10 products by revenue last quarter": TOP_PRODUCTS_LAST_QUARTER,
+            "top 100 products": TOP_100_PRODUCTS,
             "payments in last 7 days": PAYMENTS_LAST_7_DAYS,
             "last 7 days": PAYMENTS_LAST_7_DAYS,
             "last 60 days": COMPLETED_LAST_60_DAYS,
