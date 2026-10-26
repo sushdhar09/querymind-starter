@@ -13,7 +13,7 @@ export function AutoChart({ columns, rows }) {
   const x = (i) => PAD.l + (kind === 'line' ? (i / (points.length - 1)) * innerW : (i + 0.5) * (innerW / points.length))
   const y = (v) => PAD.t + innerH - ((v - min) / span) * innerH
   const step = Math.ceil(points.length / 10)
-  const barW = Math.max(4, innerW / points.length - 6)
+  const barW = Math.min(80, Math.max(4, innerW / points.length - 6))
   return (
     <div style={{ marginTop: 16 }}>
       <div className="muted" style={{ marginBottom: 4 }}>{spec.valueKey} by {spec.labelKey}</div>
