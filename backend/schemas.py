@@ -162,9 +162,9 @@ class ColumnMeta(ColumnMetaIn):
 
 class ModelConfig(BaseModel):
     provider: Literal["groq", "mock", "openai", "anthropic", "ollama"] = "mock"
-    model: str = "mixtral-8x7b-32768"
+    model: str = "llama-3.3-70b-versatile"
     temperature: float = Field(default=0.0, ge=0, le=2)
-    max_tokens: int = Field(default=1024, ge=64, le=32000)
+    max_tokens: int = Field(default=500, ge=64, le=32000)
     dialect: Dialect = "tsql"
     llm_summary: bool = True
 

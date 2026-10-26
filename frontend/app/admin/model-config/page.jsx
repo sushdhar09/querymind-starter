@@ -11,6 +11,7 @@ const PROVIDERS = [
   ['openai', 'OpenAI'],
   ['anthropic', 'Anthropic'],
   ['ollama', 'Ollama (local)'],
+  ['groq', 'Groq'],
 ]
 
 export default function ModelConfigPage() {

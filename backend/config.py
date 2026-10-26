@@ -37,11 +37,11 @@ def rate_limit_per_min() -> int:
     return int(os.getenv("RATE_LIMIT_PER_MIN", "60"))
 
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "mock")  # mock | openai
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "groq")  # mock | openai
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
+LLM_MODEL = os.getenv("LLM_MODEL", "llama-3.3-70b-versatile")
 LLM_TIMEOUT_S = float(os.getenv("LLM_TIMEOUT_S", "30"))
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
