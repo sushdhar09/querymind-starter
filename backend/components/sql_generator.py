@@ -41,6 +41,7 @@ TOP_PRODUCTS_LAST_QUARTER = ("SELECT TOP 10 p.name, SUM(oi.quantity * oi.unit_pr
                              "JOIN order_items oi ON p.product_id = oi.product_id JOIN orders o ON oi.order_id = o.order_id "
                              "WHERE o.order_date >= DATEADD(MONTH, -3, CAST(GETDATE() AS DATE)) GROUP BY p.name ORDER BY revenue DESC")
 TOP_100_PRODUCTS = "SELECT TOP 100 * FROM products"
+
 PAYMENTS_LAST_7_DAYS = "SELECT * FROM payments WHERE payment_date >= DATEADD(DAY, -7, CAST(GETDATE() AS DATE))"
 COMPLETED_LAST_60_DAYS = ("SELECT order_id, total_amount FROM orders WHERE status = 'completed' "
                           "AND order_date >= DATEADD(DAY, -60, CAST(GETDATE() AS DATE))")
@@ -105,6 +106,10 @@ class SqlGenerator:
             "last 7 days": PAYMENTS_LAST_7_DAYS,
             "last 60 days": COMPLETED_LAST_60_DAYS,
             "completed in last 60 days": COMPLETED_LAST_60_DAYS,
+            "top 10 products": "SELECT TOP 10 * FROM products",
+            "top 10 product": "SELECT TOP 10 * FROM products",
+            "top 5 products": "SELECT TOP 5 * FROM products",
+            "top 5 customers": TOP_CUSTOMERS
         }
 
     def generate(self, req: GeneratorInput) -> GeneratorOutput:
@@ -116,3 +121,27 @@ class SqlGenerator:
             if cond(nl):
                 return GeneratorOutput(sql=sql, explanation="Heuristic match")
         raise GenerationError("Could not generate SQL for this question")
+
+
+import re
+
+
+def generate(self, req: GeneratorInput) -> GeneratorOutput:
+    nl = req.nl_query.lower()
+    # Handle "top N products" or "top N customers" dynamically
+    m = re.search(r"top (\d+)\s+products?", nl)
+    if m:
+        n = m.group(1)
+        return GeneratorOutput(sql=f"SELECT TOP {n} * FROM products", explanation=f"Top {n} products")
+    m = re.search(r"top (\d+)\s+customers?", nl)
+    if m:
+        n = m.group(1)
+        return GeneratorOutput(sql=f"SELECT TOP {n} * FROM customers", explanation=f"Top {n} customers")
+
+    for key in sorted(self.templates, key=len, reverse=True):
+        if key in nl:
+            return GeneratorOutput(sql=self.templates[key], explanation=f"Matched template: {key}")
+    for cond, sql in self.heuristics:
+        if cond(nl):
+            return GeneratorOutput(sql=sql, explanation="Heuristic match")
+    raise GenerationError("Could not generate SQL for this question")

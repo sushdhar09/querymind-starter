@@ -116,6 +116,7 @@ class LlmGenerator:
             )
             sql, explanation = parse_llm_output(text)
             if not sql:
+                log.warning(f"LLM returned no SQL. Raw output: {text[:500]}")
                 raise GenerationError(explanation or "The model could not produce a SQL query for this question")
             return GeneratorOutput(sql=sql, explanation=explanation)
         except RateLimitError as e:

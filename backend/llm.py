@@ -61,7 +61,8 @@ class AnthropicClient:
             resp.raise_for_status()
             return "".join(b.get("text", "") for b in resp.json().get("content", []) if b.get("type") == "text")
         except httpx.HTTPStatusError as e:
-            raise LLMError(f"LLM request failed (HTTP {e.response.status_code})") from e
+            detail = e.response.text[:500]  # Show Anthropic's real error
+            raise LLMError(f"LLM request failed (HTTP {e.response.status_code}): {detail}") from e
         except Exception as e:
             raise LLMError(f"LLM request failed ({type(e).__name__})") from e
 
