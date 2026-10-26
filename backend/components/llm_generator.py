@@ -52,6 +52,12 @@ def build_system_prompt(dialect: str) -> str:
 
 
 def build_user_prompt(req: GeneratorInput) -> str:
+    # DEBUG: log what linker sends
+    try:
+        tables = [t.table for t in req.linker.schema_context]
+        print(f"DEBUG: schema_context = {tables}, question = {req.nl_query}")
+    except:
+        pass
     parts = ["## Schema"]
     for t in req.linker.schema_context:
         parts.append(f"Table {t.table}")
@@ -116,7 +122,6 @@ class LlmGenerator:
             )
             sql, explanation = parse_llm_output(text)
             if not sql:
-                log.warning(f"LLM returned no SQL. Raw output: {text[:500]}")
                 raise GenerationError(explanation or "The model could not produce a SQL query for this question")
             return GeneratorOutput(sql=sql, explanation=explanation)
         except RateLimitError as e:
