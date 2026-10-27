@@ -1,11 +1,15 @@
 import logging
-from typing import Optional, Protocol
 import os
+from typing import Optional, Protocol
+
 import httpx
 
 from config import ANTHROPIC_API_KEY, LLM_TIMEOUT_S, OLLAMA_BASE_URL, OPENAI_API_KEY
+
+# Add Groq support
 GROQ_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("GROQ_API_KEY", "")
 GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+
 log = logging.getLogger(__name__)
 
 
