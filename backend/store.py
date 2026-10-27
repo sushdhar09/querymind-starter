@@ -255,7 +255,7 @@ class AppStore:
         data = self._get_setting("model_config")
         if data:
             data["dialect"] = "tsql"
-        return ModelConfig(**data) if data else ModelConfig(provider=LLM_PROVIDER if LLM_PROVIDER in ("mock", "openai", "anthropic", "ollama") else "mock", model=LLM_MODEL)
+        return ModelConfig(**data) if data else ModelConfig(provider=LLM_PROVIDER if LLM_PROVIDER in ("mock", "openai", "anthropic", "ollama", "groq") else "mock", model=LLM_MODEL)
 
     def set_model_config(self, m: ModelConfig) -> ModelConfig:
         self._set_setting("model_config", m.model_dump())
