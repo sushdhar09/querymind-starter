@@ -11,38 +11,40 @@ const SUGGESTIONS = [
   'Total revenue per product category',
   'Orders in last 30 days',
   'Show revenue by month',
+  'Products with low stock',
+  'Average rating per product',
 ]
 
 const FEATURES = [
   {
     icon: '💬',
-    title: 'Natural Language Queries',
-    description: 'Ask questions in plain English - no SQL knowledge required. QueryMind understands your intent and generates the right query.'
+    title: 'Natural Language',
+    description: 'Ask in plain English, no SQL needed'
   },
   {
     icon: '🔒',
     title: 'Safe & Read-Only',
-    description: 'All queries are validated for safety. Only SELECT operations are allowed, protecting your data from accidental modifications.'
+    description: 'Only SELECT operations, data protected'
   },
   {
     icon: '⚡',
     title: 'Instant Results',
-    description: 'Get answers in seconds with optimized SQL generation and execution. Built-in caching for faster repeated queries.'
+    description: 'Fast SQL generation with caching'
   },
   {
     icon: '📊',
-    title: 'Rich Visualizations',
-    description: 'Results are presented in clean, sortable tables with automatic chart generation for better data understanding.'
+    title: 'Visualizations',
+    description: 'Clean tables with auto charts'
   },
   {
     icon: '🎯',
-    title: 'Smart Schema Understanding',
-    description: 'Automatically maps your questions to the right tables and columns, handling complex joins and relationships.'
+    title: 'Smart Schema',
+    description: 'Auto maps queries to right tables'
   },
   {
     icon: '🔄',
-    title: 'Self-Healing Queries',
-    description: 'If a query fails, QueryMind automatically attempts to fix it based on error messages, saving you time.'
+    title: 'Self-Healing',
+    description: 'Auto-fixes failed queries'
   }
 ]
 
@@ -80,7 +82,7 @@ export default function ChatPage() {
           <div className="hero-section">
             <div className="hero-content">
               <h1 className="hero-title">
-                <span className="hero-gradient">QueryMind</span>
+                <span className="hero-gradient">AskData</span>
               </h1>
               <p className="hero-subtitle">
                 Transform natural language into SQL queries instantly. Ask your data questions in plain English and get accurate, safe results.
@@ -97,7 +99,7 @@ export default function ChatPage() {
         {/* Features Section - Only show when no queries */}
         {turns.length === 0 && (
           <div className="features-section">
-            <h2 className="section-title">What QueryMind Can Do</h2>
+            <h2 className="section-title">What AskData Can Do</h2>
             <div className="features-grid">
               {FEATURES.map((feature, index) => (
                 <div key={index} className="feature-card">

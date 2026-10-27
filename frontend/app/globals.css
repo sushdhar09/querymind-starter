@@ -130,24 +130,24 @@ table.data tr:last-child td { border-bottom: 0; }
 }
 
 .section-title {
-  font-size: 20px;
+  font-size: 16px;
   font-weight: 700;
   text-align: center;
-  margin: 0 0 20px;
+  margin: 0 0 16px;
   color: var(--brand-dark);
 }
 
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
 }
 
 .feature-card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 8px;
+  padding: 10px;
   transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
@@ -159,21 +159,21 @@ table.data tr:last-child td { border-bottom: 0; }
 }
 
 .feature-icon {
-  font-size: 20px;
-  margin-right: 8px;
+  font-size: 14px;
+  margin-right: 5px;
 }
 
 .feature-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
-  margin: 0 0 8px;
+  margin: 0 0 5px;
   color: var(--brand-dark);
   display: flex;
   align-items: center;
 }
 
 .feature-description {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
   line-height: 1.5;
   margin: 0;
