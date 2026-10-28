@@ -5,7 +5,7 @@ Ask questions about a business database in plain English. QueryMind writes T-SQL
 - **Backend:** FastAPI, sqlglot (T-SQL), ChromaDB, `pyodbc` to **Azure SQL**. **Frontend:** Next.js.
 - **LLM providers:** Groq (default - free 14,400 req/day), OpenAI, Anthropic, Ollama, or an offline rule-based `mock` provider.
 - **Tests:** more than 500 backend tests and 17 frontend tests pass (`python -m pytest -q`; one live-OpenAI test is skipped unless a key is set). They run against an in-memory test double of the database, not a real server.
-- **Status:** The pipeline, safety layers, admin console and evaluation harness are implemented and tested. The application has been verified against a **live Azure SQL Serverless free tier** (General Purpose, auto-pause) with an e-commerce demo database (1000 customers, 200 products, 5000 orders, 15000 order_items). `data/check_azure.py` exists so you can verify your own server in one command. Live demo: https://tinyurl.com/querymind-app. See [Known limitations](#known-limitations) before relying on any result.
+- **Status:** The pipeline, safety layers, admin console and evaluation harness are implemented and tested. The application has been verified against a **live Azure SQL Serverless free tier** (General Purpose, auto-pause) with an e-commerce demo database (1000 customers, 200 products, 5000 orders, 15000 order_items). `data/check_azure.py` exists so you can verify your own server in one command. Live demo: https://tinyurl.com/querymind-app. To access restricted tabs in QueryMind platform - please enter - ADMIN_API_KEY value -"my-secret-key-123" See [Known limitations](#known-limitations) before relying on any result.
 
 ## Contents
 
@@ -280,4 +280,3 @@ Bonus items: ambiguity resolution (done), self-healing SQL (done), chart auto-ge
 - `Invalid object name 'customers'` after creating new free DB: free DB is empty, you must create tables and sync data from `querymind.db` using `sync_free_db.py` or Query Editor.
 - `Cannot insert NULL into column 'id'` in few_shot_examples: table id is not IDENTITY, must specify id or migrate table to IDENTITY(1,1).
 - `Cannot find data type BOOLEAN`: Azure SQL uses BIT, not BOOLEAN.
---*** to access restricted tabs please enter - ADMIN_API_KEY value -"my-secret-key-123"
