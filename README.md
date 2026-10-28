@@ -280,3 +280,4 @@ Bonus items: ambiguity resolution (done), self-healing SQL (done), chart auto-ge
 - `Invalid object name 'customers'` after creating new free DB: free DB is empty, you must create tables and sync data from `querymind.db` using `sync_free_db.py` or Query Editor.
 - `Cannot insert NULL into column 'id'` in few_shot_examples: table id is not IDENTITY, must specify id or migrate table to IDENTITY(1,1).
 - `Cannot find data type BOOLEAN`: Azure SQL uses BIT, not BOOLEAN.
+--*** to access restricted tabs please enter - ADMIN_API_KEY value -"my-secret-key-123"
