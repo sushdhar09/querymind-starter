@@ -10,7 +10,7 @@ export function Header() {
   return (
     <div className="topbar" style={{ borderBottom: '2px solid var(--brand)', background: 'linear-gradient(135deg, var(--card) 0%, var(--info-bg) 100%)' }}>
       <div className="topbar-inner">
-        <span className="brand" style={{ color: 'var(--brand)', fontSize: '20px' }}>AskData AI</span>
+        <span className="brand" style={{ color: 'var(--brand)', fontSize: '20px' }}>QueryMind AI</span>
         <nav className="nav">
           {link('/', 'Chat')}
           {link('/admin/schema-manager', 'Schema', true)}

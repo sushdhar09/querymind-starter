@@ -82,10 +82,10 @@ export default function ChatPage() {
           <div className="hero-section">
             <div className="hero-content">
               <h1 className="hero-title">
-                <span className="hero-gradient">AskData</span>
+                <span className="hero-gradient">QueryMind</span>
               </h1>
               <p className="hero-subtitle">
-                Transform natural language into SQL queries instantly. Ask your data questions in plain English and get accurate, safe results.
+                Transform natural language into SQL queries instantly. Ask questions about the e-commerce demo database in plain English and get accurate, safe results.
               </p>
               <div className="hero-badges">
                 <span className="hero-badge">🚀 Fast</span>
@@ -99,7 +99,7 @@ export default function ChatPage() {
         {/* Features Section - Only show when no queries */}
         {turns.length === 0 && (
           <div className="features-section">
-            <h2 className="section-title">What AskData Can Do</h2>
+            <h2 className="section-title">What QueryMind Can Do</h2>
             <div className="features-grid">
               {FEATURES.map((feature, index) => (
                 <div key={index} className="feature-card">
@@ -117,7 +117,7 @@ export default function ChatPage() {
         {/* Query Section */}
         <div className="query-section">
           <div style={{ marginBottom: '24px' }}>
-            <PageTitle title="Ask your data" subtitle="Type a question in plain English. QueryMind writes the SQL, checks it is safe and runs it read-only." />
+            <PageTitle title="Ask your data" subtitle="Type a question in plain English about the e-commerce demo database. QueryMind writes the SQL, checks it is safe and runs it read-only." />
           </div>
           <div style={{ marginBottom: '20px' }}>
             <QueryInput value={query} onChange={setQuery} onSubmit={() => ask()} isLoading={busy} />
