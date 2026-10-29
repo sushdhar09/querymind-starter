@@ -7,6 +7,7 @@ Ask questions about a business database in plain English. QueryMind writes T-SQL
 - **Tests:** more than 500 backend tests and 17 frontend tests pass (`python -m pytest -q`; one live-OpenAI test is skipped unless a key is set). They run against an in-memory test double of the database, not a real server.
 - **Status:** The pipeline, safety layers, admin console and evaluation harness are implemented and tested. The application has been verified against a **live Azure SQL Serverless free tier** (General Purpose, auto-pause) with an e-commerce demo database (1000 customers, 200 products, 5000 orders, 15000 order_items). `data/check_azure.py` exists so you can verify your own server in one command. Live demo: https://tinyurl.com/querymind-app. To access restricted tabs in QueryMind platform - please enter - ADMIN_API_KEY value -"my-secret-key-123" See [Known limitations](#known-limitations) before relying on any result.
 - Demo Video link - https://youtu.be/HA7MIlB43NM
+- You will need to hit Ask button for expected result for 2-3 times -It might give (HYT00) connection error But after that it will work smoothly.- This is because of known limitation - Azure SQL free tier Serverless pauses after 1 hour idle (configurable). First query after pause takes ~60s to wake (shows timeout, retry succeeds). If you exceed 100,000 vCore-seconds/month, DB auto-pauses until next month when "Auto-pause until next month - No additional charges" is selected (recommended). No billing, but queries fail during pause.
 
 ## Contents
 
