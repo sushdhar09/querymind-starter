@@ -6,4 +6,4 @@ sqlglot
 chromadb
 openai
 httpx
-pyodbc>=5.0
+pyodbc>=5.5.0
